@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { subscriptionApi } from '../../../api/subscription';
 import { getErrorMessage, getInsufficientBalanceError } from '../../../utils/subscriptionHelpers';
@@ -8,6 +8,8 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import { usePromoDiscount } from '../../../hooks/usePromoDiscount';
 import InsufficientBalancePrompt from '../../InsufficientBalancePrompt';
 import type { Tariff, TariffPeriod } from '../../../types';
+import { usePlatform } from '../../../platform';
+import { openPaymentUrl } from '../../../utils/openPaymentUrl';
 
 // ──────────────────────────────────────────────────────────────────
 // TariffPurchaseForm
@@ -32,6 +34,9 @@ export interface TariffPurchaseFormProps {
   subscriptionId: number | undefined;
   balanceKopeks: number | undefined;
   onBack: () => void;
+  recurrentCheckoutEligible: boolean;
+  recurrentTrialSubscriptionId?: number;
+  recurrentEmailRequired: boolean;
 }
 
 export function TariffPurchaseForm({
@@ -39,6 +44,9 @@ export function TariffPurchaseForm({
   subscriptionId,
   balanceKopeks,
   onBack,
+  recurrentCheckoutEligible,
+  recurrentTrialSubscriptionId,
+  recurrentEmailRequired,
 }: TariffPurchaseFormProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -46,6 +54,7 @@ export function TariffPurchaseForm({
   const { formatAmount, currencySymbol } = useCurrency();
   const { applyPromoDiscount } = usePromoDiscount();
   const ref = useRef<HTMLDivElement>(null);
+  const { platform, openLink } = usePlatform();
 
   const formatPrice = (kopeks: number) =>
     kopeks === 0
@@ -61,9 +70,31 @@ export function TariffPurchaseForm({
   const [customTrafficGb, setCustomTrafficGb] = useState<number>(50);
   const [useCustomDays, setUseCustomDays] = useState(false);
   const [useCustomTraffic, setUseCustomTraffic] = useState(false);
+  const [useLavaRecurrent, setUseLavaRecurrent] = useState(false);
+  const [recurrentEmail, setRecurrentEmail] = useState('');
+  const selectedPeriodPromo = selectedTariffPeriod
+    ? applyPromoDiscount(
+        selectedTariffPeriod.price_kopeks,
+        selectedTariffPeriod.original_price_kopeks,
+      )
+    : null;
+  const canUseLavaRecurrent = Boolean(
+    recurrentCheckoutEligible &&
+      recurrentTrialSubscriptionId &&
+      !useCustomDays &&
+      !useCustomTraffic &&
+      selectedTariffPeriod &&
+      tariff.lava_recurrent_periods?.includes(selectedTariffPeriod.days) &&
+      !selectedPeriodPromo?.percent &&
+      (selectedTariffPeriod.extra_devices_count ?? 0) === 0,
+  );
+
+  useEffect(() => {
+    if (!canUseLavaRecurrent) setUseLavaRecurrent(false);
+  }, [canUseLavaRecurrent]);
 
   const purchaseMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async (): Promise<{ paymentUrl?: string }> => {
       const isDailyTariff =
         tariff.is_daily || (tariff.daily_price_kopeks && tariff.daily_price_kopeks > 0);
       const days = isDailyTariff
@@ -78,14 +109,25 @@ export function TariffPurchaseForm({
       // uses it to resolve the exact target row by ID, avoiding the
       // race with concurrent panel webhooks that would otherwise hit
       // the partial UNIQUE on uq_subscriptions_user_tariff_active.
-      return subscriptionApi.purchaseTariff(
-        tariff.id,
-        days,
-        trafficGb,
-        subscriptionId ?? undefined,
-      );
+      const recurrentAvailable = useLavaRecurrent && canUseLavaRecurrent;
+      if (recurrentAvailable) {
+        if (!recurrentTrialSubscriptionId) throw new Error('Триальная подписка не найдена');
+        const checkout = await subscriptionApi.checkoutLavaRecurrent(
+          tariff.id,
+          days,
+          recurrentTrialSubscriptionId,
+          recurrentEmail.trim() || undefined,
+        );
+        return { paymentUrl: checkout.payment_url };
+      }
+      await subscriptionApi.purchaseTariff(tariff.id, days, trafficGb, subscriptionId ?? undefined);
+      return {};
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result.paymentUrl) {
+        openPaymentUrl(result.paymentUrl, platform, openLink);
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['purchase-options'] });
       queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
@@ -502,6 +544,7 @@ export function TariffPurchaseForm({
                 const originalTotal = promoPeriod.original
                   ? promoPeriod.original + trafficPrice
                   : null;
+                const recurrentAvailable = canUseLavaRecurrent;
 
                 return (
                   <>
@@ -599,9 +642,46 @@ export function TariffPurchaseForm({
                       </div>
                     </div>
 
+                    {recurrentAvailable && (
+                      <div className="mb-4 space-y-3 rounded-xl border border-accent-500/30 bg-accent-500/10 p-3">
+                        <label className="flex items-start gap-2 text-sm text-dark-200">
+                          <input
+                            type="checkbox"
+                            checked={useLavaRecurrent}
+                            onChange={(event) => setUseLavaRecurrent(event.target.checked)}
+                            className="mt-1"
+                          />
+                          <span>
+                            Подключить автоматическое продление через Lava. Первое списание —
+                            сейчас, следующие — раз в выбранный период.{' '}
+                            <Link
+                              to="/recurrent-payments"
+                              target="_blank"
+                              className="text-accent-400 underline"
+                            >
+                              Условия
+                            </Link>
+                          </span>
+                        </label>
+                        {useLavaRecurrent && recurrentEmailRequired && (
+                          <input
+                            type="email"
+                            value={recurrentEmail}
+                            onChange={(event) => setRecurrentEmail(event.target.value)}
+                            placeholder="E-mail для чека"
+                            autoComplete="email"
+                            className="w-full rounded-lg border border-dark-600 bg-dark-700 px-3 py-2 text-dark-100"
+                          />
+                        )}
+                      </div>
+                    )}
+
                     <button
                       onClick={() => purchaseMutation.mutate()}
-                      disabled={purchaseMutation.isPending}
+                      disabled={
+                        purchaseMutation.isPending ||
+                        (useLavaRecurrent && recurrentEmailRequired && !recurrentEmail.trim())
+                      }
                       className="btn-primary w-full py-3"
                     >
                       {purchaseMutation.isPending ? (
@@ -609,6 +689,8 @@ export function TariffPurchaseForm({
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                           {t('common.loading')}
                         </span>
+                      ) : useLavaRecurrent ? (
+                        'Оплатить через Lava и подключить'
                       ) : (
                         t('subscription.purchase')
                       )}

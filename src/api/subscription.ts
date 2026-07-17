@@ -34,12 +34,6 @@ const bodyWithSubId = (
   subscriptionId != null ? { params: { subscription_id: subscriptionId } } : {},
 ];
 
-export interface LavaRecurrentPlan {
-  period_days: number;
-  amount_kopeks: number;
-  product_id: string;
-}
-
 export interface LavaRecurrentSubscription {
   id: number;
   status: 'created' | 'activated' | 'suspended' | 'cancel_requested' | 'deactivated';
@@ -55,10 +49,6 @@ export interface LavaRecurrentSubscription {
 
 export interface LavaRecurrentState {
   enabled: boolean;
-  eligible: boolean;
-  available_from: string | null;
-  email_required: boolean;
-  plans: LavaRecurrentPlan[];
   subscription: LavaRecurrentSubscription | null;
 }
 
@@ -385,18 +375,19 @@ export const subscriptionApi = {
     return response.data;
   },
 
-  subscribeLavaRecurrent: async (
+  checkoutLavaRecurrent: async (
+    tariffId: number,
     periodDays: number,
+    subscriptionId: number,
     email: string | undefined,
-    subscriptionId?: number,
   ): Promise<{ payment_url: string; subscription: LavaRecurrentSubscription }> => {
-    const response = await apiClient.post(
-      '/cabinet/subscription/lava-recurrent/subscribe',
-      ...bodyWithSubId(
-        { period_days: periodDays, email: email || undefined, accepted_terms: true },
-        subscriptionId,
-      ),
-    );
+    const response = await apiClient.post('/cabinet/subscription/lava-recurrent/checkout', {
+      tariff_id: tariffId,
+      period_days: periodDays,
+      subscription_id: subscriptionId,
+      email: email || undefined,
+      accepted_terms: true,
+    });
     return response.data;
   },
 
