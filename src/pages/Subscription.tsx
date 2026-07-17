@@ -1326,7 +1326,6 @@ export default function Subscription() {
               subscriptionId={subscriptionId}
               devicesToAdd={devicesToAdd}
               onDevicesToAddChange={setDevicesToAdd}
-              purchaseOptions={purchaseOptions}
               isDark={isDark}
             />
 
@@ -1355,7 +1354,6 @@ export default function Subscription() {
                   subscriptionId={subscriptionId}
                   selectedTrafficPackage={selectedTrafficPackage}
                   onSelectedTrafficPackageChange={setSelectedTrafficPackage}
-                  purchaseOptions={purchaseOptions}
                   isDark={isDark}
                 />
               </div>

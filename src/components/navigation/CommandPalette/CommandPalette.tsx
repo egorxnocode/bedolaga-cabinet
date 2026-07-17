@@ -27,7 +27,6 @@ import {
 import {
   HomeIcon,
   SubscriptionIcon,
-  WalletIcon,
   UsersIcon,
   ChatIcon,
   UserIcon,
@@ -36,7 +35,6 @@ import {
   InfoIcon,
   CogIcon,
   WheelIcon,
-  PlusIcon,
   DownloadIcon,
   SunIcon,
   MoonIcon,
@@ -79,7 +77,6 @@ export function CommandPalette({
   const navigationItems = [
     { label: t('nav.dashboard'), icon: HomeIcon, path: '/' },
     { label: t('nav.subscription'), icon: SubscriptionIcon, path: '/subscriptions' },
-    { label: t('nav.balance'), icon: WalletIcon, path: '/balance' },
     ...(referralEnabled ? [{ label: t('nav.referral'), icon: UsersIcon, path: '/referral' }] : []),
     { label: t('nav.support'), icon: ChatIcon, path: '/support' },
     ...(hasContests ? [{ label: t('nav.contests'), icon: GamepadIcon, path: '/contests' }] : []),
@@ -92,11 +89,6 @@ export function CommandPalette({
 
   // Action items
   const actionItems = [
-    {
-      label: t('balance.top_up') || 'Top up balance',
-      icon: PlusIcon,
-      action: () => navigate('/balance'),
-    },
     {
       label: t('subscription.get_config') || 'Get VPN config',
       icon: DownloadIcon,

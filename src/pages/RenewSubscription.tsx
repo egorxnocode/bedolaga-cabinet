@@ -1,29 +1,31 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Navigate, useNavigate, useParams } from 'react-router';
+import { Navigate, useParams } from 'react-router';
 import { subscriptionApi } from '../api/subscription';
 import { useTheme } from '../hooks/useTheme';
 import { getGlassColors } from '../utils/glassTheme';
 import { useCurrency } from '../hooks/useCurrency';
-import { useHaptic } from '../platform';
-import InsufficientBalancePrompt from '../components/InsufficientBalancePrompt';
+import { useHaptic, usePlatform } from '../platform';
 import { WebBackButton } from '../components/WebBackButton';
+import { openPaymentUrl } from '../utils/openPaymentUrl';
+import type { TariffsPurchaseOptions } from '../types';
 
 export default function RenewSubscription() {
   const { subscriptionId } = useParams<{ subscriptionId: string }>();
   const subId = subscriptionId ? Number(subscriptionId) : undefined;
 
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { isDark } = useTheme();
   const g = getGlassColors(isDark);
   const { formatAmount, currencySymbol } = useCurrency();
   const { impact } = useHaptic();
+  const { platform, openLink } = usePlatform();
 
   const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [useRecurrent, setUseRecurrent] = useState(true);
+  const [email, setEmail] = useState('');
 
   // Load subscription detail for tariff name
   const { data: subscriptionResponse } = useQuery({
@@ -43,22 +45,33 @@ export default function RenewSubscription() {
     refetchOnMount: 'always',
   });
 
-  // Load balance
   const { data: purchaseOptions } = useQuery({
     queryKey: ['purchase-options', subId],
     queryFn: () => subscriptionApi.getPurchaseOptions(subId),
     staleTime: 0,
   });
-  const balanceKopeks = purchaseOptions?.balance_kopeks ?? 0;
+  const tariffOptions =
+    purchaseOptions && purchaseOptions.sales_mode === 'tariffs'
+      ? (purchaseOptions as TariffsPurchaseOptions)
+      : undefined;
+  const tariff = tariffOptions?.tariffs.find((item) => item.id === subscription?.tariff_id);
 
   const renewMutation = useMutation({
-    mutationFn: (periodDays: number) => subscriptionApi.renewSubscription(periodDays, subId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscription', subId] });
-      queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
-      queryClient.invalidateQueries({ queryKey: ['renewal-options', subId] });
-      queryClient.invalidateQueries({ queryKey: ['balance'] });
-      navigate(`/subscriptions/${subId}`, { replace: true });
+    mutationFn: (periodDays: number) => {
+      if (!subscription?.tariff_id) throw new Error('Тариф подписки не найден');
+      const recurrentAvailable = Boolean(tariff?.lava_recurrent_periods?.includes(periodDays));
+      return subscriptionApi.checkoutLavaService({
+        kind: subscription.is_daily ? 'daily' : 'tariff',
+        tariff_id: subscription.tariff_id,
+        subscription_id: subId,
+        period_days: subscription.is_daily ? 1 : periodDays,
+        recurrent: !subscription.is_daily && recurrentAvailable && useRecurrent,
+        email: email.trim() || undefined,
+        accepted_terms: !subscription.is_daily && recurrentAvailable && useRecurrent,
+      });
+    },
+    onSuccess: (checkout) => {
+      openPaymentUrl(checkout.payment_url, platform, openLink);
     },
     onError: (err: unknown) => {
       const detail =
@@ -66,13 +79,6 @@ export default function RenewSubscription() {
           ? ((err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail ?? null)
           : null;
 
-      if (detail && typeof detail === 'object' && 'code' in (detail as Record<string, unknown>)) {
-        const typed = detail as { code: string; missing_amount?: number };
-        if (typed.code === 'insufficient_funds' && typed.missing_amount) {
-          setError(`insufficient:${typed.missing_amount}`);
-          return;
-        }
-      }
       setError(typeof detail === 'string' ? detail : t('common.error'));
     },
   });
@@ -95,9 +101,6 @@ export default function RenewSubscription() {
     );
   }
 
-  const insufficientMatch = error?.match(/^insufficient:(\d+)$/);
-  const missingAmount = insufficientMatch ? Number(insufficientMatch[1]) : null;
-
   return (
     <div className="space-y-5">
       {/* Title */}
@@ -115,19 +118,6 @@ export default function RenewSubscription() {
         </div>
       </div>
 
-      {/* Balance */}
-      <div
-        className="flex items-center justify-between rounded-2xl p-4"
-        style={{ background: g.cardBg, border: `1px solid ${g.cardBorder}` }}
-      >
-        <span className="text-sm" style={{ color: g.textSecondary }}>
-          {t('common.balance', 'Баланс')}
-        </span>
-        <span className="text-base font-semibold" style={{ color: g.text }}>
-          {formatAmount(balanceKopeks / 100)} {currencySymbol}
-        </span>
-      </div>
-
       {/* Period options */}
       {!options || options.length === 0 ? (
         <div
@@ -142,7 +132,6 @@ export default function RenewSubscription() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {options.map((option) => {
             const isSelected = selectedPeriod === option.period_days;
-            const canAfford = balanceKopeks >= option.price_kopeks;
             const months = Math.max(1, Math.round(option.period_days / 30));
             const perMonth = option.price_kopeks / months;
 
@@ -194,28 +183,14 @@ export default function RenewSubscription() {
                     )}
                   </div>
                 </div>
-                {!canAfford && (
-                  <div className="mt-1 text-[11px] text-error-400">
-                    {t(
-                      'subscription.insufficientBalanceAmount',
-                      'Недостаточно средств. Не хватает {{missing}}',
-                      {
-                        missing: `${formatAmount((option.price_kopeks - balanceKopeks) / 100)} ${currencySymbol}`,
-                      },
-                    )}
-                  </div>
-                )}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Insufficient balance prompt */}
-      {missingAmount && <InsufficientBalancePrompt missingAmountKopeks={missingAmount} compact />}
-
       {/* Error */}
-      {error && !missingAmount && (
+      {error && (
         <div className="rounded-xl bg-error-400/10 p-3 text-center text-sm text-error-400">
           {error}
         </div>
@@ -223,15 +198,45 @@ export default function RenewSubscription() {
 
       {/* Renew button */}
       {selectedPeriod && (
-        <button
-          onClick={() => handleRenew(selectedPeriod)}
-          disabled={renewMutation.isPending}
-          className="w-full rounded-2xl bg-accent-500 py-3.5 text-base font-semibold text-on-accent transition-colors hover:bg-accent-600 disabled:opacity-50"
-        >
-          {renewMutation.isPending
-            ? t('common.processing', 'Обработка...')
-            : t('subscription.extend', 'Продлить подписку')}
-        </button>
+        <div className="space-y-3">
+          {!subscription?.is_daily && tariff?.lava_recurrent_periods?.includes(selectedPeriod) && (
+            <div className="space-y-3 rounded-2xl border border-accent-500/30 bg-accent-500/10 p-4">
+              <label className="flex items-start gap-3 text-sm" style={{ color: g.text }}>
+                <input
+                  type="checkbox"
+                  checked={useRecurrent}
+                  onChange={(event) => setUseRecurrent(event.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  Автопродление через Lava. Можно отключить в любой момент без потери оплаченного
+                  срока.
+                </span>
+              </label>
+              {useRecurrent && tariffOptions?.lava_recurrent_email_required && (
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Email для чека и привязки карты"
+                  className="w-full rounded-xl border border-dark-600 bg-dark-800 px-3 py-2 text-dark-100"
+                />
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => handleRenew(selectedPeriod)}
+            disabled={
+              renewMutation.isPending ||
+              Boolean(useRecurrent && tariffOptions?.lava_recurrent_email_required && !email.trim())
+            }
+            className="w-full rounded-2xl bg-accent-500 py-3.5 text-base font-semibold text-on-accent transition-colors hover:bg-accent-600 disabled:opacity-50"
+          >
+            {renewMutation.isPending
+              ? t('common.processing', 'Обработка...')
+              : 'Перейти к оплате Lava'}
+          </button>
+        </div>
       )}
     </div>
   );

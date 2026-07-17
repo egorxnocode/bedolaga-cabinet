@@ -52,6 +52,26 @@ export interface LavaRecurrentState {
   subscription: LavaRecurrentSubscription | null;
 }
 
+export interface LavaServiceCheckoutRequest {
+  kind: 'tariff' | 'daily' | 'traffic' | 'devices';
+  subscription_id?: number;
+  tariff_id?: number;
+  period_days?: number;
+  traffic_gb?: number;
+  devices?: number;
+  recurrent?: boolean;
+  email?: string;
+  accepted_terms?: boolean;
+  yandex_cid?: string;
+}
+
+export interface LavaServiceCheckoutResponse {
+  order_id: number;
+  payment_mode: 'one_time' | 'recurrent';
+  payment_url: string;
+  recurrent_id?: number;
+}
+
 export const subscriptionApi = {
   // ── Multi-tariff endpoints ──────────────────────────────────────────
 
@@ -375,19 +395,13 @@ export const subscriptionApi = {
     return response.data;
   },
 
-  checkoutLavaRecurrent: async (
-    tariffId: number,
-    periodDays: number,
-    subscriptionId: number,
-    email: string | undefined,
-  ): Promise<{ payment_url: string; subscription: LavaRecurrentSubscription }> => {
-    const response = await apiClient.post('/cabinet/subscription/lava-recurrent/checkout', {
-      tariff_id: tariffId,
-      period_days: periodDays,
-      subscription_id: subscriptionId,
-      email: email || undefined,
-      accepted_terms: true,
-    });
+  checkoutLavaService: async (
+    payload: LavaServiceCheckoutRequest,
+  ): Promise<LavaServiceCheckoutResponse> => {
+    const response = await apiClient.post<LavaServiceCheckoutResponse>(
+      '/cabinet/subscription/lava-orders/checkout',
+      { ...payload, yandex_cid: payload.yandex_cid || getYandexCid() || undefined },
+    );
     return response.data;
   },
 

@@ -7,7 +7,6 @@ import { displayName } from '../utils/displayName';
 import { useBlockingStore } from '../store/blocking';
 import { subscriptionApi } from '../api/subscription';
 import { referralApi } from '../api/referral';
-import { balanceApi } from '../api/balance';
 import { wheelApi } from '../api/wheel';
 import Onboarding, { useOnboarding } from '../components/Onboarding';
 import PromoOffersSection from '../components/PromoOffersSection';
@@ -38,14 +37,6 @@ export default function Dashboard() {
   useEffect(() => {
     refreshUser();
   }, [refreshUser]);
-
-  // Fetch balance from API
-  const { data: balanceData } = useQuery({
-    queryKey: ['balance'],
-    queryFn: balanceApi.getBalance,
-    staleTime: API.BALANCE_STALE_TIME_MS,
-    refetchOnMount: 'always',
-  });
 
   // Multi-tariff: check if user has multiple subscriptions
   const { data: multiSubData } = useQuery({
@@ -112,7 +103,6 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
       queryClient.invalidateQueries({ queryKey: ['trial-info'] });
-      queryClient.invalidateQueries({ queryKey: ['balance'] });
       queryClient.invalidateQueries({ queryKey: ['purchase-options'] });
       refreshUser();
     },
@@ -224,12 +214,6 @@ export default function Dashboard() {
         target: 'welcome',
         title: t('onboarding.steps.welcome.title'),
         description: t('onboarding.steps.welcome.description'),
-        placement: 'bottom',
-      },
-      {
-        target: 'balance',
-        title: t('onboarding.steps.balance.title'),
-        description: t('onboarding.steps.balance.description'),
         placement: 'bottom',
       },
     ];
@@ -346,11 +330,7 @@ export default function Dashboard() {
           ) : subscription?.is_expired ||
             subscription?.status === 'disabled' ||
             subscription?.is_limited ? (
-            <SubscriptionCardExpired
-              subscription={subscription}
-              balanceKopeks={balanceData?.balance_kopeks ?? 0}
-              balanceRubles={balanceData?.balance_rubles ?? 0}
-            />
+            <SubscriptionCardExpired subscription={subscription} />
           ) : subscription ? (
             <SubscriptionCardActive
               subscription={subscription}
@@ -373,8 +353,6 @@ export default function Dashboard() {
           {trialInfo?.is_available && (
             <TrialOfferCard
               trialInfo={trialInfo}
-              balanceKopeks={balanceData?.balance_kopeks || 0}
-              balanceRubles={balanceData?.balance_rubles || 0}
               activateTrialMutation={activateTrialMutation}
               trialError={trialError}
             />
@@ -394,7 +372,6 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <StatsGrid
-        balanceRubles={balanceData?.balance_rubles || 0}
         referralCount={referralInfo?.total_referrals || 0}
         earningsRubles={referralInfo?.available_balance_rubles || 0}
         refLoading={refLoading}

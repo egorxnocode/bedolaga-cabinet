@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { usePlatform } from '@/platform';
 
 // Icons
-import { HomeIcon, SubscriptionIcon, WalletIcon, UsersIcon, ChatIcon, WheelIcon } from './icons';
+import { ChatIcon, HomeIcon, SubscriptionIcon, UsersIcon, WheelIcon } from './icons';
 
 interface MobileBottomNavProps {
   isKeyboardOpen: boolean;
@@ -42,7 +42,6 @@ export function MobileBottomNav({
   const coreItems = [
     { path: '/', label: t('nav.dashboard'), icon: HomeIcon },
     { path: '/subscriptions', label: t('nav.subscription'), icon: SubscriptionIcon },
-    { path: '/balance', label: t('nav.balance'), icon: WalletIcon },
     ...(wheelEnabled
       ? [{ path: '/wheel', label: t('nav.wheel'), icon: WheelIcon }]
       : referralEnabled

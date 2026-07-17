@@ -3,10 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { subscriptionApi } from '../../../api/subscription';
-import { getErrorMessage, getInsufficientBalanceError } from '../../../utils/subscriptionHelpers';
+import { getErrorMessage } from '../../../utils/subscriptionHelpers';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { usePromoDiscount } from '../../../hooks/usePromoDiscount';
-import InsufficientBalancePrompt from '../../InsufficientBalancePrompt';
 import type { Tariff, TariffPeriod } from '../../../types';
 import { usePlatform } from '../../../platform';
 import { openPaymentUrl } from '../../../utils/openPaymentUrl';
@@ -24,7 +23,6 @@ import { openPaymentUrl } from '../../../utils/openPaymentUrl';
 //     by re-mount when the parent passes a new `tariff` via key=)
 //
 // The parent (SubscriptionPurchase) supplies the chosen tariff,
-// the current balance (for inline insufficient-balance prompts),
 // the subscription id (for the renew-this-subscription flow), and
 // onBack to clear its own selection state.
 // ──────────────────────────────────────────────────────────────────
@@ -32,20 +30,14 @@ import { openPaymentUrl } from '../../../utils/openPaymentUrl';
 export interface TariffPurchaseFormProps {
   tariff: Tariff;
   subscriptionId: number | undefined;
-  balanceKopeks: number | undefined;
   onBack: () => void;
-  recurrentCheckoutEligible: boolean;
-  recurrentTrialSubscriptionId?: number;
   recurrentEmailRequired: boolean;
 }
 
 export function TariffPurchaseForm({
   tariff,
   subscriptionId,
-  balanceKopeks,
   onBack,
-  recurrentCheckoutEligible,
-  recurrentTrialSubscriptionId,
   recurrentEmailRequired,
 }: TariffPurchaseFormProps) {
   const { t } = useTranslation();
@@ -70,7 +62,7 @@ export function TariffPurchaseForm({
   const [customTrafficGb, setCustomTrafficGb] = useState<number>(50);
   const [useCustomDays, setUseCustomDays] = useState(false);
   const [useCustomTraffic, setUseCustomTraffic] = useState(false);
-  const [useLavaRecurrent, setUseLavaRecurrent] = useState(false);
+  const [useLavaRecurrent, setUseLavaRecurrent] = useState(true);
   const [recurrentEmail, setRecurrentEmail] = useState('');
   const selectedPeriodPromo = selectedTariffPeriod
     ? applyPromoDiscount(
@@ -79,9 +71,7 @@ export function TariffPurchaseForm({
       )
     : null;
   const canUseLavaRecurrent = Boolean(
-    recurrentCheckoutEligible &&
-      recurrentTrialSubscriptionId &&
-      !useCustomDays &&
+    !useCustomDays &&
       !useCustomTraffic &&
       selectedTariffPeriod &&
       tariff.lava_recurrent_periods?.includes(selectedTariffPeriod.days) &&
@@ -109,19 +99,17 @@ export function TariffPurchaseForm({
       // uses it to resolve the exact target row by ID, avoiding the
       // race with concurrent panel webhooks that would otherwise hit
       // the partial UNIQUE on uq_subscriptions_user_tariff_active.
-      const recurrentAvailable = useLavaRecurrent && canUseLavaRecurrent;
-      if (recurrentAvailable) {
-        if (!recurrentTrialSubscriptionId) throw new Error('Триальная подписка не найдена');
-        const checkout = await subscriptionApi.checkoutLavaRecurrent(
-          tariff.id,
-          days,
-          recurrentTrialSubscriptionId,
-          recurrentEmail.trim() || undefined,
-        );
-        return { paymentUrl: checkout.payment_url };
-      }
-      await subscriptionApi.purchaseTariff(tariff.id, days, trafficGb, subscriptionId ?? undefined);
-      return {};
+      const checkout = await subscriptionApi.checkoutLavaService({
+        kind: isDailyTariff ? 'daily' : 'tariff',
+        tariff_id: tariff.id,
+        period_days: days,
+        subscription_id: subscriptionId,
+        traffic_gb: trafficGb,
+        recurrent: !isDailyTariff && useLavaRecurrent && canUseLavaRecurrent,
+        email: recurrentEmail.trim() || undefined,
+        accepted_terms: !isDailyTariff && useLavaRecurrent && canUseLavaRecurrent,
+      });
+      return { paymentUrl: checkout.payment_url };
     },
     onSuccess: (result) => {
       if (result.paymentUrl) {
@@ -189,32 +177,23 @@ export function TariffPurchaseForm({
           <div className="space-y-2 text-sm text-dark-400">
             <div className="flex items-start gap-2">
               <span className="text-accent-400">•</span>
-              <span>{t('subscription.dailyPurchase.chargedDaily')}</span>
+              <span>Оплачивается разовым счётом Lava</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-accent-400">•</span>
-              <span>{t('subscription.dailyPurchase.canPause')}</span>
+              <span>Без автосписаний и внутреннего баланса</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-accent-400">•</span>
-              <span>{t('subscription.dailyPurchase.pausedOnLowBalance')}</span>
+              <span>Каждая активация оплачивается отдельно</span>
             </div>
           </div>
 
           {(() => {
             const dailyPrice = tariff.daily_price_kopeks || 0;
-            const hasEnoughBalance = balanceKopeks !== undefined && dailyPrice <= balanceKopeks;
 
             return (
               <div className="mt-6">
-                {balanceKopeks !== undefined && !hasEnoughBalance && (
-                  <InsufficientBalancePrompt
-                    missingAmountKopeks={dailyPrice - balanceKopeks}
-                    compact
-                    className="mb-4"
-                  />
-                )}
-
                 <button
                   onClick={() => purchaseMutation.mutate()}
                   disabled={purchaseMutation.isPending}
@@ -232,24 +211,11 @@ export function TariffPurchaseForm({
                   )}
                 </button>
 
-                {purchaseMutation.isError &&
-                  !getInsufficientBalanceError(purchaseMutation.error) && (
-                    <div className="mt-3 text-center text-sm text-error-400">
-                      {getErrorMessage(purchaseMutation.error)}
-                    </div>
-                  )}
-                {purchaseMutation.isError &&
-                  getInsufficientBalanceError(purchaseMutation.error) && (
-                    <div className="mt-3">
-                      <InsufficientBalancePrompt
-                        missingAmountKopeks={
-                          getInsufficientBalanceError(purchaseMutation.error)?.missingAmount ||
-                          dailyPrice - (balanceKopeks || 0)
-                        }
-                        compact
-                      />
-                    </div>
-                  )}
+                {purchaseMutation.isError && (
+                  <div className="mt-3 text-center text-sm text-error-400">
+                    {getErrorMessage(purchaseMutation.error)}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -692,26 +658,16 @@ export function TariffPurchaseForm({
                       ) : useLavaRecurrent ? (
                         'Оплатить через Lava и подключить'
                       ) : (
-                        t('subscription.purchase')
+                        'Перейти к разовой оплате Lava'
                       )}
                     </button>
                   </>
                 );
               })()}
 
-              {purchaseMutation.isError && !getInsufficientBalanceError(purchaseMutation.error) && (
+              {purchaseMutation.isError && (
                 <div className="mt-3 text-center text-sm text-error-400">
                   {getErrorMessage(purchaseMutation.error)}
-                </div>
-              )}
-              {purchaseMutation.isError && getInsufficientBalanceError(purchaseMutation.error) && (
-                <div className="mt-3">
-                  <InsufficientBalancePrompt
-                    missingAmountKopeks={
-                      getInsufficientBalanceError(purchaseMutation.error)?.missingAmount || 0
-                    }
-                    compact
-                  />
                 </div>
               )}
             </div>

@@ -26,7 +26,6 @@ import TicketNotificationBell from '@/components/TicketNotificationBell';
 import {
   HomeIcon,
   SubscriptionIcon,
-  WalletIcon,
   UsersIcon,
   ChatIcon,
   UserIcon,
@@ -162,7 +161,6 @@ export function AppHeader({
   const navItems = [
     { path: '/', label: t('nav.dashboard'), icon: HomeIcon },
     { path: '/subscriptions', label: t('nav.subscription'), icon: SubscriptionIcon },
-    { path: '/balance', label: t('nav.balance'), icon: WalletIcon },
     ...(referralEnabled ? [{ path: '/referral', label: t('nav.referral'), icon: UsersIcon }] : []),
     { path: '/support', label: t('nav.support'), icon: ChatIcon },
     ...(hasContests ? [{ path: '/contests', label: t('nav.contests'), icon: GamepadIcon }] : []),

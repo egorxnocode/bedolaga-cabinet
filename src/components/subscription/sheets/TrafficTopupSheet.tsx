@@ -1,16 +1,17 @@
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { subscriptionApi } from '../../../api/subscription';
 import { getErrorMessage } from '../../../utils/subscriptionHelpers';
-import InsufficientBalancePrompt from '../../InsufficientBalancePrompt';
 import { ChevronRightIcon } from '../../icons';
-import type { PurchaseOptions, Subscription } from '../../../types';
+import type { Subscription } from '../../../types';
+import { usePlatform } from '../../../platform';
+import { openPaymentUrl } from '../../../utils/openPaymentUrl';
 
 // ──────────────────────────────────────────────────────────────────
 // Buy-traffic sheet. Self-owns the packages query + purchase mutation;
 // parent passes the selectedTrafficPackage state (the parent already
 // resets it on global "close all modals", which is why it stays up
-// top), shared purchaseOptions, and ids/flags.
+// top), plus ids/flags.
 //
 // Extracted from Subscription.tsx — ~170 lines off the god page.
 // ──────────────────────────────────────────────────────────────────
@@ -23,7 +24,6 @@ export interface TrafficTopupSheetProps {
   subscriptionId: number | undefined;
   selectedTrafficPackage: number | null;
   onSelectedTrafficPackageChange: (gb: number | null) => void;
-  purchaseOptions: PurchaseOptions | undefined;
   isDark: boolean;
 }
 
@@ -35,11 +35,10 @@ export function TrafficTopupSheet({
   subscriptionId,
   selectedTrafficPackage,
   onSelectedTrafficPackageChange,
-  purchaseOptions,
   isDark,
 }: TrafficTopupSheetProps) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
+  const { platform, openLink } = usePlatform();
 
   const formatPrice = (kopeks: number) => {
     const rubles = kopeks / 100;
@@ -53,12 +52,15 @@ export function TrafficTopupSheet({
   });
 
   const purchaseMutation = useMutation({
-    mutationFn: (gb: number) => subscriptionApi.purchaseTraffic(gb, subscriptionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
-      queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
-      queryClient.invalidateQueries({ queryKey: ['balance'] });
-      queryClient.invalidateQueries({ queryKey: ['traffic-packages', subscriptionId] });
+    mutationFn: (gb: number) =>
+      subscriptionApi.checkoutLavaService({
+        kind: 'traffic',
+        subscription_id: subscriptionId,
+        traffic_gb: gb,
+        recurrent: false,
+      }),
+    onSuccess: (checkout) => {
+      openPaymentUrl(checkout.payment_url, platform, openLink);
       onClose();
       onSelectedTrafficPackageChange(null);
     },
@@ -164,48 +166,25 @@ export function TrafficTopupSheet({
           {selectedTrafficPackage !== null &&
             (() => {
               const selectedPkg = trafficPackages.find((p) => p.gb === selectedTrafficPackage);
-              const hasEnoughBalance =
-                !selectedPkg ||
-                !purchaseOptions ||
-                selectedPkg.price_kopeks <= purchaseOptions.balance_kopeks;
-              const missingAmount =
-                selectedPkg && purchaseOptions
-                  ? selectedPkg.price_kopeks - purchaseOptions.balance_kopeks
-                  : 0;
 
               return (
-                <>
-                  {!hasEnoughBalance && missingAmount > 0 && (
-                    <InsufficientBalancePrompt
-                      missingAmountKopeks={missingAmount}
-                      compact
-                      className="mb-3"
-                      onBeforeTopUp={async () => {
-                        await subscriptionApi.saveTrafficCart(
-                          selectedTrafficPackage,
-                          subscriptionId,
-                        );
-                      }}
-                    />
+                <button
+                  onClick={() => purchaseMutation.mutate(selectedTrafficPackage)}
+                  disabled={purchaseMutation.isPending}
+                  className="btn-primary w-full py-3"
+                >
+                  {purchaseMutation.isPending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    </span>
+                  ) : selectedPkg?.is_unlimited ? (
+                    t('subscription.additionalOptions.buyUnlimited')
+                  ) : (
+                    t('subscription.additionalOptions.buyTrafficGb', {
+                      gb: selectedTrafficPackage,
+                    })
                   )}
-                  <button
-                    onClick={() => purchaseMutation.mutate(selectedTrafficPackage)}
-                    disabled={purchaseMutation.isPending || !hasEnoughBalance}
-                    className="btn-primary w-full py-3"
-                  >
-                    {purchaseMutation.isPending ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      </span>
-                    ) : selectedPkg?.is_unlimited ? (
-                      t('subscription.additionalOptions.buyUnlimited')
-                    ) : (
-                      t('subscription.additionalOptions.buyTrafficGb', {
-                        gb: selectedTrafficPackage,
-                      })
-                    )}
-                  </button>
-                </>
+                </button>
               );
             })()}
 

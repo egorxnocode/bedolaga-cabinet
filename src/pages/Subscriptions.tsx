@@ -4,7 +4,6 @@ import { Navigate, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ClipboardIcon, PlusIcon } from '@/components/icons';
 import { subscriptionApi } from '../api/subscription';
-import { balanceApi } from '../api/balance';
 import { useTheme } from '../hooks/useTheme';
 import { getGlassColors } from '../utils/glassTheme';
 import { useAuthStore } from '../store/auth';
@@ -78,13 +77,6 @@ export default function Subscriptions() {
     staleTime: 30_000,
   });
 
-  const { data: balanceData } = useQuery({
-    queryKey: ['balance'],
-    queryFn: balanceApi.getBalance,
-    enabled: hasNoSubscriptions && !!trialInfo?.is_available,
-    staleTime: 30_000,
-  });
-
   const activateTrialMutation = useMutation({
     mutationFn: () => subscriptionApi.activateTrial(),
     onSuccess: () => {
@@ -92,7 +84,6 @@ export default function Subscriptions() {
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
       queryClient.invalidateQueries({ queryKey: ['trial-info'] });
-      queryClient.invalidateQueries({ queryKey: ['balance'] });
       queryClient.invalidateQueries({ queryKey: ['purchase-options'] });
       refreshUser();
     },
@@ -160,8 +151,6 @@ export default function Subscriptions() {
         <div className="space-y-4">
           <TrialOfferCard
             trialInfo={trialInfo}
-            balanceKopeks={balanceData?.balance_kopeks ?? 0}
-            balanceRubles={balanceData?.balance_rubles ?? 0}
             activateTrialMutation={activateTrialMutation}
             trialError={trialError}
           />
