@@ -34,6 +34,34 @@ const bodyWithSubId = (
   subscriptionId != null ? { params: { subscription_id: subscriptionId } } : {},
 ];
 
+export interface LavaRecurrentPlan {
+  period_days: number;
+  amount_kopeks: number;
+  product_id: string;
+}
+
+export interface LavaRecurrentSubscription {
+  id: number;
+  status: 'created' | 'activated' | 'suspended' | 'cancel_requested' | 'deactivated';
+  is_active: boolean;
+  period_days: number;
+  amount_kopeks: number;
+  product_id: string;
+  payment_url: string | null;
+  payer_details: string | null;
+  next_pay_at: string | null;
+  created_at: string | null;
+}
+
+export interface LavaRecurrentState {
+  enabled: boolean;
+  eligible: boolean;
+  available_from: string | null;
+  email_required: boolean;
+  plans: LavaRecurrentPlan[];
+  subscription: LavaRecurrentSubscription | null;
+}
+
 export const subscriptionApi = {
   // ── Multi-tariff endpoints ──────────────────────────────────────────
 
@@ -344,6 +372,39 @@ export const subscriptionApi = {
     const response = await apiClient.patch(
       '/cabinet/subscription/autopay',
       { enabled, days_before: daysBefore },
+      withSubId(subscriptionId),
+    );
+    return response.data;
+  },
+
+  getLavaRecurrentState: async (subscriptionId?: number): Promise<LavaRecurrentState> => {
+    const response = await apiClient.get<LavaRecurrentState>(
+      '/cabinet/subscription/lava-recurrent',
+      withSubId(subscriptionId),
+    );
+    return response.data;
+  },
+
+  subscribeLavaRecurrent: async (
+    periodDays: number,
+    email: string | undefined,
+    subscriptionId?: number,
+  ): Promise<{ payment_url: string; subscription: LavaRecurrentSubscription }> => {
+    const response = await apiClient.post(
+      '/cabinet/subscription/lava-recurrent/subscribe',
+      ...bodyWithSubId(
+        { period_days: periodDays, email: email || undefined, accepted_terms: true },
+        subscriptionId,
+      ),
+    );
+    return response.data;
+  },
+
+  unsubscribeLavaRecurrent: async (
+    subscriptionId?: number,
+  ): Promise<{ success: boolean; subscription: LavaRecurrentSubscription }> => {
+    const response = await apiClient.delete(
+      '/cabinet/subscription/lava-recurrent',
       withSubId(subscriptionId),
     );
     return response.data;

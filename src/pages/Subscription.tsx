@@ -40,6 +40,7 @@ import { DeviceReductionSheet } from '../components/subscription/sheets/DeviceRe
 import { TrafficTopupSheet } from '../components/subscription/sheets/TrafficTopupSheet';
 import { ServerManagementSheet } from '../components/subscription/sheets/ServerManagementSheet';
 import { DeleteSubscriptionSheet } from '../components/subscription/sheets/DeleteSubscriptionSheet';
+import { LavaRecurrentCard } from '../components/subscription/LavaRecurrentCard';
 
 /** Isolated countdown so 1s interval doesn't re-render the whole page */
 const CountdownTimer = memo(function CountdownTimer({
@@ -1038,6 +1039,9 @@ export default function Subscription() {
                   <div>
                     <div className="text-sm font-semibold text-dark-50">
                       {t('subscription.autoRenewal')}
+                      <span className="ml-1.5 text-[10px] font-normal text-dark-50/30">
+                        {t('subscription.fromBalance', 'с баланса')}
+                      </span>
                     </div>
                     <div className="mt-0.5 text-[11px] text-dark-50/30">
                       {t('subscription.daysBeforeExpiry', {
@@ -1070,6 +1074,14 @@ export default function Subscription() {
                     />
                   </button>
                 </div>
+              )}
+
+              {!subscription.is_trial && !subscription.is_daily && (
+                <LavaRecurrentCard
+                  subscriptionId={subscriptionId}
+                  formatPrice={formatPrice}
+                  glassColors={g}
+                />
               )}
             </div>
           );
