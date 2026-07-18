@@ -32,6 +32,7 @@ export interface TariffPurchaseFormProps {
   subscriptionId: number | undefined;
   onBack: () => void;
   recurrentEmailRequired: boolean;
+  recurrentEmail: string;
 }
 
 export function TariffPurchaseForm({
@@ -39,6 +40,7 @@ export function TariffPurchaseForm({
   subscriptionId,
   onBack,
   recurrentEmailRequired,
+  recurrentEmail: savedRecurrentEmail,
 }: TariffPurchaseFormProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -63,7 +65,7 @@ export function TariffPurchaseForm({
   const [useCustomDays, setUseCustomDays] = useState(false);
   const [useCustomTraffic, setUseCustomTraffic] = useState(false);
   const [useLavaRecurrent, setUseLavaRecurrent] = useState(true);
-  const [recurrentEmail, setRecurrentEmail] = useState('');
+  const [recurrentEmail, setRecurrentEmail] = useState(savedRecurrentEmail);
   const selectedPeriodPromo = selectedTariffPeriod
     ? applyPromoDiscount(
         selectedTariffPeriod.price_kopeks,
@@ -178,6 +180,10 @@ export function TariffPurchaseForm({
             <div className="flex items-start gap-2">
               <span className="text-accent-400">•</span>
               <span>Оплачивается разовым счётом Lava</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-accent-400">•</span>
+              <span>Способы оплаты: СБП, банковская карта</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-accent-400">•</span>
@@ -618,7 +624,7 @@ export function TariffPurchaseForm({
                             className="mt-1"
                           />
                           <span>
-                            Подключить автоматическое продление через Lava. Первое списание —
+                            Подключить автоматическую оплату с банковской карты. Первое списание —
                             сейчас, следующие — раз в выбранный период.{' '}
                             <Link
                               to="/recurrent-payments"
@@ -629,16 +635,32 @@ export function TariffPurchaseForm({
                             </Link>
                           </span>
                         </label>
-                        {useLavaRecurrent && recurrentEmailRequired && (
-                          <input
-                            type="email"
-                            value={recurrentEmail}
-                            onChange={(event) => setRecurrentEmail(event.target.value)}
-                            placeholder="E-mail для чека"
-                            autoComplete="email"
-                            className="w-full rounded-lg border border-dark-600 bg-dark-700 px-3 py-2 text-dark-100"
-                          />
+                        <div className="text-sm text-dark-300">
+                          {useLavaRecurrent && recurrentAvailable
+                            ? 'Способ оплаты: банковская карта'
+                            : 'Способы оплаты: СБП, банковская карта'}
+                        </div>
+                        {useLavaRecurrent && recurrentAvailable && (
+                          <div className="space-y-1">
+                            <input
+                              type="email"
+                              value={recurrentEmail}
+                              onChange={(event) => setRecurrentEmail(event.target.value)}
+                              placeholder="E-mail для чека"
+                              autoComplete="email"
+                              readOnly={!recurrentEmailRequired}
+                              className="w-full rounded-lg border border-dark-600 bg-dark-700 px-3 py-2 text-dark-100 read-only:cursor-default read-only:opacity-80"
+                            />
+                            {!recurrentEmailRequired && (
+                              <p className="text-xs text-dark-400">E-mail сохранён в аккаунте</p>
+                            )}
+                          </div>
                         )}
+                      </div>
+                    )}
+                    {!recurrentAvailable && (
+                      <div className="mb-4 text-sm text-dark-300">
+                        Способы оплаты: СБП, банковская карта
                       </div>
                     )}
 
@@ -646,7 +668,10 @@ export function TariffPurchaseForm({
                       onClick={() => purchaseMutation.mutate()}
                       disabled={
                         purchaseMutation.isPending ||
-                        (useLavaRecurrent && recurrentEmailRequired && !recurrentEmail.trim())
+                        (useLavaRecurrent &&
+                          recurrentAvailable &&
+                          recurrentEmailRequired &&
+                          !recurrentEmail.trim())
                       }
                       className="btn-primary w-full py-3"
                     >
@@ -655,10 +680,10 @@ export function TariffPurchaseForm({
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                           {t('common.loading')}
                         </span>
-                      ) : useLavaRecurrent ? (
-                        'Оплатить через Lava и подключить'
+                      ) : useLavaRecurrent && recurrentAvailable ? (
+                        'Оплатить и подключить'
                       ) : (
-                        'Перейти к разовой оплате Lava'
+                        'Перейти к оплате'
                       )}
                     </button>
                   </>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useParams } from 'react-router';
@@ -55,6 +55,17 @@ export default function RenewSubscription() {
       ? (purchaseOptions as TariffsPurchaseOptions)
       : undefined;
   const tariff = tariffOptions?.tariffs.find((item) => item.id === subscription?.tariff_id);
+  const recurrentAvailable = Boolean(
+    selectedPeriod &&
+      !subscription?.is_daily &&
+      tariff?.lava_recurrent_periods?.includes(selectedPeriod),
+  );
+
+  useEffect(() => {
+    if (tariffOptions?.lava_recurrent_email) {
+      setEmail(tariffOptions.lava_recurrent_email);
+    }
+  }, [tariffOptions?.lava_recurrent_email]);
 
   const renewMutation = useMutation({
     mutationFn: (periodDays: number) => {
@@ -199,7 +210,7 @@ export default function RenewSubscription() {
       {/* Renew button */}
       {selectedPeriod && (
         <div className="space-y-3">
-          {!subscription?.is_daily && tariff?.lava_recurrent_periods?.includes(selectedPeriod) && (
+          {recurrentAvailable && (
             <div className="space-y-3 rounded-2xl border border-accent-500/30 bg-accent-500/10 p-4">
               <label className="flex items-start gap-3 text-sm" style={{ color: g.text }}>
                 <input
@@ -209,32 +220,66 @@ export default function RenewSubscription() {
                   className="mt-1"
                 />
                 <span>
-                  Автопродление через Lava. Можно отключить в любой момент без потери оплаченного
-                  срока.
+                  Подключить автоматическую оплату с банковской карты. Первое списание — сейчас,
+                  следующие — раз в выбранный период.{' '}
+                  <a
+                    href="/recurrent-payments"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-accent-400 underline"
+                  >
+                    Условия
+                  </a>
                 </span>
               </label>
-              {useRecurrent && tariffOptions?.lava_recurrent_email_required && (
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="Email для чека и привязки карты"
-                  className="w-full rounded-xl border border-dark-600 bg-dark-800 px-3 py-2 text-dark-100"
-                />
+              <div className="text-sm" style={{ color: g.textSecondary }}>
+                {useRecurrent
+                  ? 'Способ оплаты: банковская карта'
+                  : 'Способы оплаты: СБП, банковская карта'}
+              </div>
+              {useRecurrent && (
+                <div className="space-y-1">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="E-mail для чека и привязки карты"
+                    autoComplete="email"
+                    readOnly={!tariffOptions?.lava_recurrent_email_required}
+                    className="w-full rounded-xl border border-dark-600 bg-dark-800 px-3 py-2 text-dark-100 read-only:cursor-default read-only:opacity-80"
+                  />
+                  {!tariffOptions?.lava_recurrent_email_required && (
+                    <p className="text-xs" style={{ color: g.textSecondary }}>
+                      E-mail сохранён в аккаунте
+                    </p>
+                  )}
+                </div>
               )}
+            </div>
+          )}
+          {!recurrentAvailable && (
+            <div className="text-sm" style={{ color: g.textSecondary }}>
+              Способы оплаты: СБП, банковская карта
             </div>
           )}
           <button
             onClick={() => handleRenew(selectedPeriod)}
             disabled={
               renewMutation.isPending ||
-              Boolean(useRecurrent && tariffOptions?.lava_recurrent_email_required && !email.trim())
+              Boolean(
+                recurrentAvailable &&
+                  useRecurrent &&
+                  tariffOptions?.lava_recurrent_email_required &&
+                  !email.trim(),
+              )
             }
             className="w-full rounded-2xl bg-accent-500 py-3.5 text-base font-semibold text-on-accent transition-colors hover:bg-accent-600 disabled:opacity-50"
           >
             {renewMutation.isPending
               ? t('common.processing', 'Обработка...')
-              : 'Перейти к оплате Lava'}
+              : recurrentAvailable && useRecurrent
+                ? 'Оплатить и подключить'
+                : 'Перейти к оплате'}
           </button>
         </div>
       )}

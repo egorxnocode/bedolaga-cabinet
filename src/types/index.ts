@@ -374,6 +374,7 @@ export interface TariffsPurchaseOptions {
   lava_recurrent_checkout_eligible?: boolean;
   lava_recurrent_trial_subscription_id?: number | null;
   lava_recurrent_email_required?: boolean;
+  lava_recurrent_email?: string | null;
 }
 
 export interface ClassicPurchaseOptions {

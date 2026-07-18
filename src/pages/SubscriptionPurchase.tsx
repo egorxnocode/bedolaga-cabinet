@@ -286,6 +286,7 @@ export default function SubscriptionPurchase() {
                 tariff={selectedTariff}
                 subscriptionId={subscriptionId}
                 recurrentEmailRequired={Boolean(purchaseOptions?.lava_recurrent_email_required)}
+                recurrentEmail={purchaseOptions?.lava_recurrent_email ?? ''}
                 onBack={() => {
                   setShowTariffPurchase(false);
                   setSelectedTariff(null);
