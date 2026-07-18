@@ -9,6 +9,7 @@ import { getGlassColors } from '../utils/glassTheme';
 import { useAuthStore } from '../store/auth';
 import SubscriptionListCard from '../components/subscription/SubscriptionListCard';
 import TrialOfferCard from '../components/dashboard/TrialOfferCard';
+import { PendingLavaRecurrentCard } from '../components/subscription/PendingLavaRecurrentCard';
 
 function EmptyState({ onBuy }: { onBuy: () => void }) {
   const { t } = useTranslation();
@@ -59,6 +60,15 @@ export default function Subscriptions() {
   });
 
   const subscriptions = data?.subscriptions ?? [];
+  const { data: recurrentData, isLoading: recurrentLoading } = useQuery({
+    queryKey: ['lava-recurrent-agreements'],
+    queryFn: () => subscriptionApi.getLavaRecurrentAgreements(),
+    staleTime: 15_000,
+    refetchOnMount: 'always',
+  });
+  const pendingRecurrent = (recurrentData?.agreements ?? []).filter(
+    (agreement) => agreement.subscription_id == null,
+  );
   const isMultiTariff = data?.multi_tariff_enabled ?? false;
   const hasNoSubscriptions = !isLoading && subscriptions.length === 0;
   // Есть ли хотя бы одна НАСТОЯЩАЯ (платная, не триал) живая подписка. От этого
@@ -93,7 +103,13 @@ export default function Subscriptions() {
   });
 
   // Single-tariff mode with one subscription: skip list, go directly to detail
-  if (data && !isMultiTariff && subscriptions.length === 1) {
+  if (
+    data &&
+    !recurrentLoading &&
+    pendingRecurrent.length === 0 &&
+    !isMultiTariff &&
+    subscriptions.length === 1
+  ) {
     return <Navigate to={`/subscriptions/${subscriptions[0].id}`} replace />;
   }
 
@@ -120,6 +136,14 @@ export default function Subscriptions() {
           </button>
         )}
       </div>
+
+      {pendingRecurrent.length > 0 && (
+        <div className="space-y-3">
+          {pendingRecurrent.map((agreement) => (
+            <PendingLavaRecurrentCard key={agreement.id} agreement={agreement} />
+          ))}
+        </div>
+      )}
 
       {/* Есть подписки, но платной активной нет (только триал/истёкшие) —
           даём ЯВНУЮ primary-кнопку покупки: мы продаём подписки. */}

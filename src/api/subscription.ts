@@ -45,6 +45,10 @@ export interface LavaRecurrentSubscription {
   payer_details: string | null;
   next_pay_at: string | null;
   created_at: string | null;
+  deactivated_at: string | null;
+  subscription_id: number | null;
+  tariff_id: number | null;
+  tariff_name: string | null;
 }
 
 export interface LavaRecurrentState {
@@ -395,6 +399,13 @@ export const subscriptionApi = {
     return response.data;
   },
 
+  getLavaRecurrentAgreements: async (): Promise<{
+    agreements: LavaRecurrentSubscription[];
+  }> => {
+    const response = await apiClient.get('/cabinet/subscription/lava-recurrent/agreements');
+    return response.data;
+  },
+
   checkoutLavaService: async (
     payload: LavaServiceCheckoutRequest,
   ): Promise<LavaServiceCheckoutResponse> => {
@@ -407,11 +418,26 @@ export const subscriptionApi = {
 
   unsubscribeLavaRecurrent: async (
     subscriptionId?: number,
-  ): Promise<{ success: boolean; subscription: LavaRecurrentSubscription }> => {
+  ): Promise<{
+    success: boolean;
+    pending: boolean;
+    subscription: LavaRecurrentSubscription;
+  }> => {
     const response = await apiClient.delete(
       '/cabinet/subscription/lava-recurrent',
       withSubId(subscriptionId),
     );
+    return response.data;
+  },
+
+  unsubscribeLavaRecurrentById: async (
+    recurrentId: number,
+  ): Promise<{
+    success: boolean;
+    pending: boolean;
+    subscription: LavaRecurrentSubscription;
+  }> => {
+    const response = await apiClient.delete(`/cabinet/subscription/lava-recurrent/${recurrentId}`);
     return response.data;
   },
 

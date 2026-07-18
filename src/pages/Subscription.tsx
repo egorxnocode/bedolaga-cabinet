@@ -290,15 +290,6 @@ export default function Subscription() {
 
   const isTariffsMode = purchaseOptions?.sales_mode === 'tariffs';
 
-  const autopayMutation = useMutation({
-    mutationFn: (enabled: boolean) =>
-      subscriptionApi.updateAutopay(enabled, undefined, subscriptionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
-      queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
-    },
-  });
-
   // Devices query
   const { data: devicesData, isLoading: devicesLoading } = useQuery({
     queryKey: ['devices', subscriptionId],
@@ -1027,60 +1018,12 @@ export default function Subscription() {
                 </div>
               )}
 
-              {/* ─── Autopay Toggle ─── */}
-              {!subscription.is_trial && !subscription.is_daily && (
-                <div
-                  className="flex items-center justify-between rounded-[14px] p-3.5"
-                  style={{
-                    background: g.innerBg,
-                    border: `1px solid ${g.innerBorder}`,
-                  }}
-                >
-                  <div>
-                    <div className="text-sm font-semibold text-dark-50">
-                      {t('subscription.autoRenewal')}
-                      <span className="ml-1.5 text-[10px] font-normal text-dark-50/30">
-                        {t('subscription.fromBalance', 'с баланса')}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-dark-50/30">
-                      {t('subscription.daysBeforeExpiry', {
-                        count: subscription.autopay_days_before,
-                      })}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => autopayMutation.mutate(!subscription.autopay_enabled)}
-                    disabled={autopayMutation.isPending}
-                    role="switch"
-                    aria-checked={subscription.autopay_enabled}
-                    aria-label={t('subscription.autopay', 'Auto-payment')}
-                    className="relative h-7 w-[52px] rounded-full transition-colors duration-300"
-                    style={{
-                      background: subscription.autopay_enabled ? zone.mainHex : g.textGhost,
-                    }}
-                  >
-                    {/* translateX (compositor) instead of left (layout-thrash).
-                        Resting position pinned at left:3px; on toggles a 23px
-                        slide on the GPU. */}
-                    <span
-                      className="absolute left-[3px] top-[3px] h-[22px] w-[22px] rounded-full bg-white transition-transform duration-300"
-                      style={{
-                        transform: subscription.autopay_enabled
-                          ? 'translateX(23px)'
-                          : 'translateX(0)',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                      }}
-                    />
-                  </button>
-                </div>
-              )}
-
               {!subscription.is_trial && !subscription.is_daily && (
                 <LavaRecurrentCard
                   subscriptionId={subscriptionId}
                   formatPrice={formatPrice}
                   glassColors={g}
+                  endDate={subscription.end_date}
                 />
               )}
             </div>
