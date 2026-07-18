@@ -252,10 +252,11 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="cabinet-dashboard-page space-y-6">
       {/* Header */}
-      <div data-onboarding="welcome">
-        <h1 className="text-2xl font-bold text-dark-50 sm:text-3xl">
+      <div className="cabinet-welcome" data-onboarding="welcome">
+        <span className="cabinet-eyebrow">{t('dashboard.title')}</span>
+        <h1 className="font-display text-2xl font-medium text-dark-50 sm:text-3xl">
           {t('dashboard.welcome', { name: displayName(user) })}
         </h1>
         <div className="mt-1 flex flex-wrap items-center gap-2">

@@ -1,18 +1,17 @@
+import type { UseMutationResult } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
-import { Link } from 'react-router';
-import { UseMutationResult } from '@tanstack/react-query';
-import TrafficProgressBar from './TrafficProgressBar';
-import Sparkline from './Sparkline';
-import { useAnimatedNumber } from '../../hooks/useAnimatedNumber';
-import { useTheme } from '../../hooks/useTheme';
-import { useTrafficZone } from '../../hooks/useTrafficZone';
-import { formatTraffic } from '../../utils/formatTraffic';
-import { getGlassColors } from '../../utils/glassTheme';
-import { HoverBorderGradient } from '../ui/hover-border-gradient';
-import { CalendarIcon, RefreshIcon } from '@/components/icons';
-import { useHaptic } from '../../platform';
-import type { Subscription } from '../../types';
+import { Link, useNavigate } from 'react-router';
+
+import {
+  ArrowRightIcon,
+  DevicesIcon,
+  PlusIcon,
+  RefreshIcon,
+  TrafficIcon,
+} from '@/components/icons';
+import { useHaptic } from '@/platform';
+import type { Subscription } from '@/types';
+import { formatTraffic } from '@/utils/formatTraffic';
 
 interface SubscriptionCardActiveProps {
   subscription: Subscription;
@@ -35,343 +34,136 @@ export default function SubscriptionCardActive({
 }: SubscriptionCardActiveProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isDark } = useTheme();
-  const g = getGlassColors(isDark);
+  const haptic = useHaptic();
 
   const usedPercent = trafficData?.traffic_used_percent ?? subscription.traffic_used_percent;
   const usedGb = trafficData?.traffic_used_gb ?? subscription.traffic_used_gb;
   const isUnlimited = trafficData?.is_unlimited ?? subscription.traffic_limit_gb === 0;
-  const zone = useTrafficZone(usedPercent);
-  const animatedPercent = useAnimatedNumber(usedPercent);
-  const haptic = useHaptic();
-
+  const remainingGb = Math.max(subscription.traffic_limit_gb - usedGb, 0);
+  const remainingPercent = isUnlimited ? 100 : Math.max(0, Math.min(100, 100 - usedPercent));
   const isAtDeviceLimit =
     subscription.device_limit > 0 && connectedDevices >= subscription.device_limit;
+  const planName = subscription.tariff_name || t('subscription.currentPlan');
 
-  const formattedDate = new Date(subscription.end_date).toLocaleDateString();
-  const daysLeft = subscription.days_left;
-
-  // Sparkline placeholder data (hidden until API provides daily usage)
-  const dailyUsage: number[] = [];
+  const connectDevice = () => {
+    if (isAtDeviceLimit || !subscription.subscription_url) {
+      haptic.notification('error');
+      return;
+    }
+    navigate(`/connection?sub=${subscription.id}`);
+  };
 
   return (
-    <div
-      className="relative overflow-hidden rounded-3xl lg:backdrop-blur-xl"
-      style={{
-        background: g.cardBg,
-        border: subscription.is_trial
-          ? '1px solid rgba(var(--color-accent-400), 0.15)'
-          : isDark
-            ? `1px solid ${g.cardBorder}`
-            : `1px solid rgba(${zone.mainVarRaw}, 0.14)`,
-        padding: '28px 28px 24px',
-        boxShadow: isDark
-          ? g.shadow
-          : `0 2px 16px rgba(${zone.mainVarRaw}, 0.07), 0 0 0 1px rgba(${zone.mainVarRaw}, 0.03)`,
-      }}
-    >
-      {/* Decorative trial-shimmer border + ambient background glow removed.
-          Trial state is conveyed by the badge in the header; ambient glow
-          carried no information and ate visual attention. */}
+    <section className="cabinet-dashboard-stack" aria-label={t('dashboard.yourSubscription')}>
+      <article className="cabinet-subscription-hero">
+        <div className="cabinet-card-heading">
+          <span className="cabinet-eyebrow">
+            {subscription.is_trial ? t('subscription.trialStatus') : t('dashboard.tariff')}
+          </span>
+          <span className="cabinet-status-pill">
+            <i aria-hidden="true" />
+            {t('subscription.active')}
+          </span>
+        </div>
 
-      {/* ─── Header ─── */}
-      <div className="mb-7 flex items-start justify-between">
         <div>
-          {/* Zone indicator */}
-          <div className="mb-1 flex items-center gap-2">
-            <div
-              className="h-2 w-2 rounded-full"
-              style={{
-                background: zone.mainVar,
-                transition: 'background 0.6s ease',
-              }}
-              aria-hidden="true"
-            />
-            <span
-              className="font-mono text-[11px] font-semibold uppercase tracking-widest"
-              style={{ color: zone.mainVar, transition: 'color 0.6s ease' }}
-            >
-              {isUnlimited ? t('dashboard.unlimited') : t(zone.labelKey)}
+          <h2>{planName}</h2>
+          <p>
+            {subscription.is_trial
+              ? t('dashboard.trialOffer.freeDesc')
+              : `${t('dashboard.remaining')}: ${subscription.days_left} ${t('subscription.daysShort')}`}
+          </p>
+        </div>
+
+        <Link to={`/subscriptions/${subscription.id}`} className="cabinet-primary-action">
+          <span>{t('dashboard.viewSubscription')}</span>
+          <ArrowRightIcon className="h-4 w-4" />
+        </Link>
+      </article>
+
+      <div className="cabinet-metric-grid">
+        <article className="cabinet-metric-card cabinet-metric-card-gold">
+          <div className="cabinet-metric-label">
+            <TrafficIcon className="h-4 w-4" />
+            <span>{t('dashboard.trafficUsageTitle')}</span>
+          </div>
+          <strong>{isUnlimited ? '∞' : formatTraffic(remainingGb)}</strong>
+          <div className="cabinet-meter" aria-hidden="true">
+            <span className="cabinet-meter-fill" style={{ width: `${remainingPercent}%` }} />
+          </div>
+          <small>
+            {isUnlimited
+              ? t('dashboard.unlimited')
+              : `${formatTraffic(usedGb)} ${t('dashboard.usedSuffix')}`}
+          </small>
+        </article>
+
+        <article className="cabinet-metric-card cabinet-metric-card-sage">
+          <div className="cabinet-metric-label">
+            <DevicesIcon className="h-4 w-4" />
+            <span>{t('subscription.devices')}</span>
+          </div>
+          <strong>
+            {connectedDevices}
+            <span className="cabinet-metric-value-suffix">
+              {' '}
+              / {subscription.device_limit === 0 ? '∞' : subscription.device_limit}
             </span>
-            {subscription.is_trial && (
-              <span className="inline-flex items-center gap-1 rounded-md border border-accent-400/25 bg-accent-400/10 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest text-accent-400">
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {t('subscription.trialStatus')}
-              </span>
+          </strong>
+          <div className="cabinet-device-dots" aria-hidden="true">
+            {Array.from(
+              { length: Math.min(Math.max(subscription.device_limit || 3, 3), 5) },
+              (_, index) => (
+                <i key={index} className={index < connectedDevices ? 'is-used' : ''} />
+              ),
             )}
           </div>
-
-          {/* Title */}
-          <h2 className="text-lg font-bold tracking-tight text-dark-50">
-            {t('dashboard.trafficUsageTitle')}
-          </h2>
-        </div>
-
-        {/* Big percentage / infinity */}
-        <div className="text-right">
-          {isUnlimited ? (
-            <>
-              <div
-                className="font-display text-[28px] font-extrabold leading-none tracking-tight"
-                style={{ color: zone.mainVar }}
-              >
-                &#8734;
-              </div>
-              <div className="mt-1 font-mono text-[11px] text-dark-50/30">
-                {formatTraffic(usedGb)} {t('dashboard.usedSuffix')}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="font-display text-[38px] font-extrabold leading-none tracking-tight text-dark-50">
-                {animatedPercent.toFixed(0)}
-                <span className="ml-px text-lg font-medium text-dark-50/35">%</span>
-              </div>
-              <div className="mt-0.5 font-mono text-[11px] text-dark-50/30">
-                {formatTraffic(usedGb)} / {formatTraffic(subscription.traffic_limit_gb)}
-              </div>
-            </>
-          )}
-        </div>
+          <small>
+            {isAtDeviceLimit
+              ? t('dashboard.deviceLimitReached')
+              : t('dashboard.devicesConnected', { count: connectedDevices })}
+          </small>
+        </article>
       </div>
 
-      {/* ─── Progress Bar ─── */}
-      <div className="mb-6">
-        <TrafficProgressBar
-          usedGb={usedGb}
-          limitGb={subscription.traffic_limit_gb}
-          percent={usedPercent}
-          isUnlimited={isUnlimited}
-        />
-      </div>
-
-      {/* ─── Connect Device Button ─── */}
       {subscription.subscription_url && (
-        <HoverBorderGradient
-          as="button"
-          accentColor={zone.mainHex}
+        <button
+          type="button"
+          className="cabinet-quick-action"
+          onClick={connectDevice}
           disabled={isAtDeviceLimit}
-          onClick={() => {
-            if (isAtDeviceLimit) {
-              haptic.notification('error');
-              return;
-            }
-            navigate(`/connection?sub=${subscription.id}`);
-          }}
-          className={`mb-2.5 flex w-full items-center gap-3.5 rounded-[14px] p-3.5 text-left transition-shadow duration-300${isAtDeviceLimit ? 'cursor-not-allowed opacity-50' : ''}`}
           data-onboarding="connect-devices"
-          style={{ fontFamily: 'inherit' }}
         >
-          {/* Monitor icon */}
-          <div
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] transition-colors duration-500"
-            style={{ background: `rgba(${zone.mainVarRaw}, 0.07)` }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={zone.mainVar}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <path d="M12 17v4M8 21h8" />
-              <path d="M12 8v4M10 10h4" opacity="0.7" />
-            </svg>
-          </div>
-
-          {/* Text */}
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold tracking-tight text-dark-50">
-              {t('dashboard.connectDevice')}
-            </div>
-            <div className="mt-0.5 text-[11px] text-dark-50/30">
+          <span className="cabinet-quick-action-icon">
+            <PlusIcon className="h-5 w-5" />
+          </span>
+          <span className="cabinet-quick-action-copy">
+            <small>{t('dashboard.quickActions')}</small>
+            <strong>{t('dashboard.connectDevice')}</strong>
+            <span className="cabinet-quick-action-meta">
               {subscription.device_limit === 0
                 ? t('dashboard.devicesConnectedUnlimited', { used: connectedDevices })
                 : t('dashboard.devicesOfMax', {
                     used: connectedDevices,
                     max: subscription.device_limit,
                   })}
-            </div>
-            {isAtDeviceLimit && (
-              <div
-                className="mt-1 text-[10px] font-medium"
-                style={{ color: 'rgb(var(--color-warning-400))' }}
-              >
-                {t('dashboard.deviceLimitReached')}
-              </div>
-            )}
-          </div>
-
-          {/* Device indicator */}
-          {subscription.device_limit === 0 ? (
-            <div
-              className="flex flex-shrink-0 items-center text-lg text-dark-50/40"
-              aria-hidden="true"
-            >
-              ∞
-            </div>
-          ) : subscription.device_limit <= 10 ? (
-            <div className="flex flex-shrink-0 gap-1.5" aria-hidden="true">
-              {Array.from({ length: subscription.device_limit }, (_, i) => (
-                <div
-                  key={i}
-                  className="h-[7px] w-[7px] rounded-full transition-all duration-300"
-                  style={{
-                    background: i < connectedDevices ? zone.mainVar : g.textGhost,
-                    boxShadow:
-                      i < connectedDevices ? `0 0 6px rgba(${zone.mainVarRaw}, 0.31)` : 'none',
-                  }}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex w-16 flex-shrink-0 items-center" aria-hidden="true">
-              <div
-                className="h-[6px] w-full overflow-hidden rounded-full"
-                style={{ background: g.textGhost }}
-              >
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.round((connectedDevices / subscription.device_limit) * 100)}%`,
-                    background: zone.mainVar,
-                    boxShadow: `0 0 8px rgba(${zone.mainVarRaw}, 0.25)`,
-                    minWidth: connectedDevices > 0 ? '4px' : '0px',
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </HoverBorderGradient>
-      )}
-
-      {/* ─── Stats row: Tariff + Days Left ─── */}
-      <div className="mb-5 flex gap-2.5">
-        {/* Tariff badge — clickable. Neutral chrome: the tariff name has
-            no traffic-zone semantics, so tinting it by the traffic zone
-            (DESIGN.md Status-Hue Lockout) was wrong. */}
-        <Link
-          to={`/subscriptions/${subscription.id}`}
-          className="flex-1 rounded-[14px] p-3.5 transition-colors"
-          style={{
-            background: g.innerBg,
-            border: `1px solid ${g.innerBorder}`,
-          }}
-        >
-          <div
-            className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider"
-            style={{ color: g.textFaint }}
-          >
-            {t('dashboard.tariff')}
-          </div>
-          <div className="min-w-0 truncate text-base font-bold leading-tight tracking-tight text-dark-50">
-            {subscription.tariff_name || t('subscription.currentPlan')}
-          </div>
-          <div className="mt-0.5 font-mono text-[10px] text-dark-50/30">
-            {t('dashboard.validUntil', { date: formattedDate })}
-          </div>
-        </Link>
-
-        {/* Days remaining */}
-        <div
-          className="flex-1 rounded-[14px] p-3.5 transition-colors duration-300"
-          style={{
-            background: g.innerBg,
-            border:
-              daysLeft <= 3
-                ? '1px solid rgba(var(--color-warning-400), 0.2)'
-                : `1px solid ${g.innerBorder}`,
-          }}
-        >
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-dark-50/35">
-            <div
-              className="flex h-6 w-6 items-center justify-center rounded-[7px] transition-colors duration-300"
-              style={{
-                background: daysLeft <= 3 ? 'rgba(var(--color-warning-400), 0.1)' : g.hoverBg,
-              }}
-            >
-              <span
-                style={{
-                  color: daysLeft <= 3 ? 'rgb(var(--color-warning-400))' : g.textSecondary,
-                }}
-                aria-hidden="true"
-              >
-                <CalendarIcon className="h-[13px] w-[13px]" />
-              </span>
-            </div>
-            {t('dashboard.remaining')}
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span
-              className="text-[22px] font-bold tracking-tight transition-colors duration-300"
-              style={{ color: daysLeft <= 3 ? 'rgb(var(--color-warning-400))' : g.text }}
-            >
-              {daysLeft}
             </span>
-            <span className="text-xs font-medium text-dark-50/25">
-              {t('subscription.daysShort')}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Traffic Refresh ─── */}
-      <div className="mb-5 flex items-center justify-between px-0.5">
-        <button
-          onClick={() => refreshTrafficMutation.mutate()}
-          disabled={refreshTrafficMutation.isPending || trafficRefreshCooldown > 0}
-          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium text-dark-50/35 transition-colors hover:bg-dark-50/[0.05] hover:text-dark-50/50 disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label={t('common.refresh')}
-        >
-          <RefreshIcon
-            className={`h-3 w-3 ${refreshTrafficMutation.isPending ? 'animate-spin' : ''}`}
-          />
-          {trafficRefreshCooldown > 0 ? `${trafficRefreshCooldown}s` : t('common.refresh')}
+          </span>
+          <ArrowRightIcon className="h-5 w-5" />
         </button>
-        <Link
-          to={`/subscriptions/${subscription.id}`}
-          className="text-[11px] font-medium text-dark-50/25 transition-colors hover:text-dark-50/40"
-        >
-          {t('dashboard.viewSubscription')} &rarr;
-        </Link>
-      </div>
-
-      {/* ─── Sparkline ─── */}
-      {dailyUsage.length >= 2 && (
-        <div
-          className="rounded-[14px] p-3.5 pb-3"
-          style={{ background: g.innerBg, border: `1px solid ${g.innerBorder}` }}
-        >
-          <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-dark-50/40">
-              {t('dashboard.usageLast14Days')}
-            </span>
-            <span className="font-mono text-[11px] text-dark-50/25">
-              {t('dashboard.maxUsage', { amount: formatTraffic(Math.max(...dailyUsage)) })}
-            </span>
-          </div>
-          <Sparkline data={dailyUsage} width={440} height={44} color={zone.mainVar} />
-        </div>
       )}
-    </div>
+
+      <button
+        type="button"
+        className="cabinet-refresh-action"
+        onClick={() => refreshTrafficMutation.mutate()}
+        disabled={refreshTrafficMutation.isPending || trafficRefreshCooldown > 0}
+      >
+        <RefreshIcon
+          className={`h-3.5 w-3.5 ${refreshTrafficMutation.isPending ? 'animate-spin' : ''}`}
+        />
+        {trafficRefreshCooldown > 0 ? `${trafficRefreshCooldown}s` : t('common.refresh')}
+      </button>
+    </section>
   );
 }

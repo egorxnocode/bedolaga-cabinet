@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 316 72" role="img" aria-labelledby="title">
+  <title id="title">НаСвязи</title>
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4.8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g fill="none" stroke="#b09a61" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.4" filter="url(#glow)">
+    <path d="M10 49 29.6 16l19.6 33"/>
+    <path d="M18.8 49 29.6 30l10.8 19"/>
+  </g>
+  <circle cx="29.6" cy="54.6" r="3.6" fill="#b09a61"/>
+  <text x="70" y="48.4" fill="#f0eadf" font-family="Outfit, Manrope, Arial, sans-serif" font-size="38" font-weight="500" letter-spacing="-1">НаСвязи</text>
+</svg>

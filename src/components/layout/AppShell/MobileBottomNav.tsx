@@ -59,7 +59,7 @@ export function MobileBottomNav({
     <nav
       className={cn(
         'fixed z-50 transition-all duration-200 lg:hidden',
-        'bg-dark-900/95 backdrop-blur-linear',
+        'cabinet-bottom-nav bg-dark-900/95 backdrop-blur-linear',
         'border border-dark-700/30',
         isKeyboardOpen ? 'pointer-events-none opacity-0' : 'opacity-100',
       )}
@@ -80,13 +80,13 @@ export function MobileBottomNav({
             onClick={handleNavClick}
             className={cn(
               'relative flex min-w-[56px] flex-1 shrink-0 flex-col items-center justify-center rounded-2xl px-3 py-2.5 transition-all duration-200',
-              isActive(item.path) ? 'text-accent-400' : 'text-dark-400 hover:text-dark-200',
+              isActive(item.path) ? 'text-[#b09a61]' : 'text-dark-400 hover:text-dark-200',
             )}
           >
             {isActive(item.path) && (
               <motion.div
                 layoutId="bottom-nav-active"
-                className="absolute inset-0 rounded-2xl bg-accent-500/15"
+                className="cabinet-bottom-nav-active absolute inset-0 rounded-2xl"
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               />
             )}
