@@ -6,19 +6,13 @@ import { cn } from '@/lib/utils';
 import { usePlatform } from '@/platform';
 
 // Icons
-import { ChatIcon, HomeIcon, SubscriptionIcon, UsersIcon, WheelIcon } from './icons';
+import { ChatIcon, HomeIcon, SubscriptionIcon, UserIcon } from './icons';
 
 interface MobileBottomNavProps {
   isKeyboardOpen: boolean;
-  referralEnabled?: boolean;
-  wheelEnabled?: boolean;
 }
 
-export function MobileBottomNav({
-  isKeyboardOpen,
-  referralEnabled,
-  wheelEnabled,
-}: MobileBottomNavProps) {
+export function MobileBottomNav({ isKeyboardOpen }: MobileBottomNavProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const { haptic } = usePlatform();
@@ -26,28 +20,11 @@ export function MobileBottomNav({
   const isActive = (path: string) =>
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
-  // Core navigation items for bottom bar.
-  //
-  // Support is ALWAYS present — frustrated paying customers must find help
-  // in the primary nav, not in the hamburger drawer. Previously Wheel
-  // (a brand-moment surface) displaced Support (a critical-path surface)
-  // when the wheel feature flag was on; that trade is hostile to the
-  // support-user persona and was flagged by the /impeccable critique.
-  //
-  // Slot priority when both Wheel and Referral are enabled and only
-  // four slots remain after Dashboard / Subscriptions / Balance / Support:
-  //   - Wheel wins (operator opted in as a deliberate brand moment)
-  //   - Referral falls back to the hamburger drawer
-  // When only one of them is enabled, that one fills the slot.
   const coreItems = [
     { path: '/', label: t('nav.dashboard'), icon: HomeIcon },
     { path: '/subscriptions', label: t('nav.subscription'), icon: SubscriptionIcon },
-    ...(wheelEnabled
-      ? [{ path: '/wheel', label: t('nav.wheel'), icon: WheelIcon }]
-      : referralEnabled
-        ? [{ path: '/referral', label: t('nav.referral'), icon: UsersIcon }]
-        : []),
     { path: '/support', label: t('nav.support'), icon: ChatIcon },
+    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
   ];
 
   const handleNavClick = () => {
@@ -58,7 +35,7 @@ export function MobileBottomNav({
     <nav
       className={cn(
         'fixed z-50 transition-all duration-200 lg:hidden',
-        'bg-dark-900/95 backdrop-blur-linear',
+        'cabinet-bottom-nav bg-dark-900/95 backdrop-blur-linear',
         'border border-dark-700/30',
         isKeyboardOpen ? 'pointer-events-none opacity-0' : 'opacity-100',
       )}
@@ -79,13 +56,13 @@ export function MobileBottomNav({
             onClick={handleNavClick}
             className={cn(
               'relative flex min-w-[56px] flex-1 shrink-0 flex-col items-center justify-center rounded-2xl px-3 py-2.5 transition-all duration-200',
-              isActive(item.path) ? 'text-accent-400' : 'text-dark-400 hover:text-dark-200',
+              isActive(item.path) ? 'text-[#b09a61]' : 'text-dark-400 hover:text-dark-200',
             )}
           >
             {isActive(item.path) && (
               <motion.div
                 layoutId="bottom-nav-active"
-                className="absolute inset-0 rounded-2xl bg-accent-500/15"
+                className="cabinet-bottom-nav-active absolute inset-0 rounded-2xl"
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               />
             )}

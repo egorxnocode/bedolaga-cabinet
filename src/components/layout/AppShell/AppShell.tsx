@@ -13,7 +13,6 @@ import { useBranding } from '@/hooks/useBranding';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { themeColorsApi } from '@/api/themeColors';
-import { isLogoPreloaded } from '@/api/branding';
 import { cn } from '@/lib/utils';
 
 import WebSocketNotifications from '@/components/WebSocketNotifications';
@@ -38,6 +37,7 @@ import {
 
 import { MobileBottomNav } from './MobileBottomNav';
 import { AppHeader } from './AppHeader';
+import { BrandLockup } from './BrandLockup';
 import { useBackgroundConsumer } from '@/components/backgrounds/BackgroundHost';
 
 interface AppShellProps {
@@ -56,7 +56,7 @@ export function AppShell({ children }: AppShellProps) {
   const { toggleTheme, isDark } = useTheme();
 
   // Extracted hooks
-  const { appName, logoLetter, hasCustomLogo, logoUrl } = useBranding();
+  const { appName, hasCustomLogo, logoUrl } = useBranding();
   const { referralEnabled, wheelEnabled, hasContests, hasPolls, giftEnabled } = useFeatureFlags();
   useScrollRestoration();
   // Анимированный фон рендерит BackgroundHost в App (не перемонтируется при
@@ -201,30 +201,15 @@ export function AppShell({ children }: AppShellProps) {
           {/* Logo */}
           <Link
             to="/"
-            className="flex shrink-0 items-center gap-2.5 justify-self-start"
+            className="flex shrink-0 items-center justify-self-start"
             onClick={handleNavClick}
           >
-            <div className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-dark-800">
-              <span
-                className={cn(
-                  'absolute text-sm font-bold text-accent-400 transition-opacity duration-200',
-                  hasCustomLogo && isLogoPreloaded() ? 'opacity-0' : 'opacity-100',
-                )}
-              >
-                {logoLetter}
-              </span>
-              {hasCustomLogo && logoUrl && (
-                <img
-                  src={logoUrl}
-                  alt={appName || 'Logo'}
-                  className={cn(
-                    'absolute h-full w-full object-contain transition-opacity duration-200',
-                    isLogoPreloaded() ? 'opacity-100' : 'opacity-0',
-                  )}
-                />
-              )}
-            </div>
-            <span className="text-base font-semibold text-dark-100">{appName}</span>
+            <BrandLockup
+              appName={appName}
+              hasCustomLogo={hasCustomLogo}
+              logoUrl={logoUrl}
+              className="w-[138px]"
+            />
           </Link>
 
           {/* Navigation — единая «капсула» (segmented control): все пункты видны
@@ -301,11 +286,7 @@ export function AppShell({ children }: AppShellProps) {
       <main className="mx-auto max-w-6xl px-4 py-6 pb-28 lg:px-6 lg:pb-8">{children}</main>
 
       {/* Mobile Bottom Navigation */}
-      <MobileBottomNav
-        isKeyboardOpen={isKeyboardOpen}
-        referralEnabled={referralEnabled}
-        wheelEnabled={wheelEnabled}
-      />
+      <MobileBottomNav isKeyboardOpen={isKeyboardOpen} />
     </div>
   );
 }
