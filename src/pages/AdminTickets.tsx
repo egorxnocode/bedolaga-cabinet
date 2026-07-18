@@ -5,7 +5,12 @@ import { MessageMediaGrid } from '../components/tickets/MessageMediaGrid';
 import { useNavigate, useParams } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { adminApi, AdminTicket, AdminTicketDetail } from '../api/admin';
+import {
+  adminApi,
+  type AdminTicket,
+  type AdminTicketDetail,
+  type AiSupportDraft,
+} from '../api/admin';
 import { ticketsApi } from '../api/tickets';
 import { copyToClipboard as copyText } from '../utils/clipboard';
 import { usePlatform } from '../platform/hooks/usePlatform';
@@ -80,6 +85,8 @@ export default function AdminTickets() {
   const [replyText, setReplyText] = useState('');
   const [isReplying, setIsReplying] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [aiDraftText, setAiDraftText] = useState('');
+  const [aiDraftError, setAiDraftError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,6 +123,43 @@ export default function AdminTickets() {
     queryKey: ['admin-ticket', selectedTicketId],
     queryFn: () => adminApi.getTicket(selectedTicketId!),
     enabled: !!selectedTicketId,
+  });
+
+  const { data: aiDrafts } = useQuery({
+    queryKey: ['admin-ai-drafts', selectedTicketId],
+    queryFn: () =>
+      selectedTicketId ? adminApi.getAiSupportDrafts(selectedTicketId) : Promise.resolve([]),
+    enabled: !!selectedTicketId,
+  });
+
+  const pendingAiDraft = aiDrafts?.find((draft) => draft.status === 'pending');
+
+  useEffect(() => {
+    setAiDraftText(pendingAiDraft?.answer_text ?? '');
+    setAiDraftError(null);
+  }, [pendingAiDraft?.answer_text]);
+
+  const aiDraftReviewMutation = useMutation({
+    mutationFn: ({ draft, action }: { draft: AiSupportDraft; action: 'accepted' | 'rejected' }) =>
+      adminApi.reviewAiSupportDraft(draft.ticket_id, draft.id, {
+        action,
+        ...(action === 'accepted'
+          ? { reviewed_text: aiDraftText.trim() }
+          : { reason: 'operator_rejected' }),
+      }),
+    onSuccess: (reviewedDraft) => {
+      setAiDraftError(null);
+      if (reviewedDraft.status === 'accepted') {
+        setReplyText(reviewedDraft.reviewed_text ?? reviewedDraft.answer_text);
+      }
+      queryClient.invalidateQueries({
+        queryKey: ['admin-ai-drafts', reviewedDraft.ticket_id],
+      });
+    },
+    onError: (error) => {
+      logger.error('AI support draft review failed:', error);
+      setAiDraftError(t('admin.tickets.aiDraftReviewFailed'));
+    },
   });
 
   const statusMutation = useMutation({
@@ -236,6 +280,7 @@ export default function AdminTickets() {
     clearAttachments();
     setIsReplying(false);
     queryClient.invalidateQueries({ queryKey: ['admin-ticket', selectedTicketId] });
+    queryClient.invalidateQueries({ queryKey: ['admin-ai-drafts', selectedTicketId] });
     queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
     queryClient.invalidateQueries({ queryKey: ['admin-ticket-stats'] });
   };
@@ -559,6 +604,91 @@ export default function AdminTickets() {
                   </div>
                 ))}
               </div>
+
+              {pendingAiDraft && selectedTicket.status !== 'closed' && (
+                <div className="mb-4 rounded-xl border border-violet-500/30 bg-violet-500/10 p-4">
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-violet-200">
+                        {t('admin.tickets.aiDraftTitle')}
+                      </div>
+                      <div className="mt-1 text-xs text-violet-300/80">
+                        {t('admin.tickets.aiDraftHidden')}
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-violet-400/30 px-2 py-1 text-xs text-violet-300">
+                      {t('admin.tickets.aiDraftPending')}
+                    </span>
+                  </div>
+
+                  <textarea
+                    value={aiDraftText}
+                    onChange={(event) => setAiDraftText(event.target.value)}
+                    rows={5}
+                    maxLength={2000}
+                    disabled={aiDraftReviewMutation.isPending}
+                    className="input resize-y"
+                  />
+
+                  {pendingAiDraft.citations.length > 0 && (
+                    <div className="mt-3">
+                      <div className="mb-2 text-xs text-dark-400">
+                        {t('admin.tickets.aiDraftCitations')}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {pendingAiDraft.citations.map((citation) => (
+                          <span
+                            key={citation}
+                            className="rounded-lg border border-dark-600 bg-dark-800/70 px-2 py-1 font-mono text-xs text-dark-300"
+                          >
+                            {citation}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {aiDraftError && (
+                    <div className="mt-3 rounded-lg border border-error-500/30 bg-error-500/10 px-3 py-2 text-sm text-error-300">
+                      {aiDraftError}
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs text-dark-400">
+                      {t('admin.tickets.aiDraftSendHint')}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          aiDraftReviewMutation.mutate({
+                            draft: pendingAiDraft,
+                            action: 'rejected',
+                          })
+                        }
+                        disabled={aiDraftReviewMutation.isPending}
+                        className="btn-secondary px-3 py-2 text-sm disabled:opacity-50"
+                      >
+                        {t('admin.tickets.aiDraftReject')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          aiDraftReviewMutation.mutate({
+                            draft: pendingAiDraft,
+                            action: 'accepted',
+                          })
+                        }
+                        disabled={!aiDraftText.trim() || aiDraftReviewMutation.isPending}
+                        className="btn-primary px-3 py-2 text-sm disabled:opacity-50"
+                      >
+                        {t('admin.tickets.aiDraftUse')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Reply form */}
               {selectedTicket.status !== 'closed' && (
