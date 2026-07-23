@@ -1894,20 +1894,23 @@ input[type="checkbox"]:hover:not(:checked) {
   }
 }
 
-/* НаСвязи customer cabinet — black / terracotta / sage / antique gold. */
+/* НаСвязи customer cabinet — dark warm / terracotta / sage / antique gold.
+   Approved visual (2026-07-23): dark-but-not-black background (#1f221e),
+   cards distinctly lighter (#2b302a), terracotta/sage/gold accents, animated
+   drifting gradient-mesh background. Subscription Card UX (KOHO-style). */
 .dark {
-  --color-dark-50: 240, 234, 223 !important;
-  --color-dark-100: 240, 234, 223 !important;
+  --color-dark-50: 242, 236, 224 !important;
+  --color-dark-100: 242, 236, 224 !important;
   --color-dark-200: 213, 207, 197 !important;
-  --color-dark-300: 181, 175, 165 !important;
-  --color-dark-400: 151, 145, 136 !important;
-  --color-dark-500: 117, 114, 106 !important;
-  --color-dark-600: 72, 73, 64 !important;
-  --color-dark-700: 40, 42, 34 !important;
-  --color-dark-800: 20, 22, 19 !important;
-  --color-dark-850: 14, 16, 14 !important;
-  --color-dark-900: 10, 11, 10 !important;
-  --color-dark-950: 7, 8, 7 !important;
+  --color-dark-300: 176, 167, 149 !important;
+  --color-dark-400: 138, 129, 117 !important;
+  --color-dark-500: 110, 104, 93 !important;
+  --color-dark-600: 58, 65, 55 !important;
+  --color-dark-700: 58, 65, 55 !important;
+  --color-dark-800: 43, 48, 42 !important;
+  --color-dark-850: 43, 48, 42 !important;
+  --color-dark-900: 43, 48, 42 !important;
+  --color-dark-950: 31, 34, 30 !important;
   --color-accent-300: 206, 139, 117 !important;
   --color-accent-400: 181, 108, 84 !important;
   --color-accent-500: 165, 94, 73 !important;
@@ -1916,14 +1919,32 @@ input[type="checkbox"]:hover:not(:checked) {
   --color-success-500: 111, 133, 102 !important;
   --color-warning-400: 194, 174, 119 !important;
   --color-warning-500: 176, 154, 97 !important;
-  --color-on-accent: 240, 234, 223 !important;
+  --color-on-accent: 255, 255, 255 !important;
 }
 
 .dark body {
-  background:
-    radial-gradient(circle at 8% 4%, rgba(165, 94, 73, 0.14), transparent 28rem),
-    radial-gradient(circle at 93% 32%, rgba(111, 133, 102, 0.1), transparent 30rem),
-    radial-gradient(circle at 45% 96%, rgba(176, 154, 97, 0.07), transparent 28rem), #070807;
+  background-color: #1f221e;
+  background-image:
+    radial-gradient(circle at 8% 4%, rgba(165, 94, 73, 0.16), transparent 32rem),
+    radial-gradient(circle at 93% 28%, rgba(111, 133, 102, 0.12), transparent 34rem),
+    radial-gradient(circle at 50% 98%, rgba(176, 154, 97, 0.1), transparent 32rem);
+  background-size: 220% 220%;
+  animation: cabinet-mesh-drift 22s ease-in-out infinite alternate;
+}
+
+@keyframes cabinet-mesh-drift {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 100% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dark body {
+    animation: none;
+  }
 }
 
 .brand-lockup-frame {
@@ -1944,9 +1965,9 @@ input[type="checkbox"]:hover:not(:checked) {
 
 .dark header.glass,
 .dark header.bg-dark-950\/95 {
-  border-color: rgba(176, 154, 97, 0.13);
-  background: rgba(7, 8, 7, 0.9);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
+  border-color: rgba(176, 154, 97, 0.14);
+  background: rgba(43, 48, 42, 0.92);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(20px);
 }
 
@@ -1970,7 +1991,7 @@ input[type="checkbox"]:hover:not(:checked) {
 }
 
 .cabinet-eyebrow {
-  color: #979188;
+  color: #b0a795;
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.11em;
@@ -2138,7 +2159,7 @@ input[type="checkbox"]:hover:not(:checked) {
   height: 5px;
   overflow: hidden;
   border-radius: 999px;
-  background: #29271f;
+  background: #424840;
 }
 
 .cabinet-meter-fill {
@@ -2159,7 +2180,7 @@ input[type="checkbox"]:hover:not(:checked) {
   width: 22px;
   height: 5px;
   border-radius: 999px;
-  background: #282a22;
+  background: #424840;
 }
 
 .cabinet-device-dots i.is-used {
@@ -2255,11 +2276,11 @@ input[type="checkbox"]:hover:not(:checked) {
 
 .cabinet-bottom-nav {
   border-color: rgba(176, 154, 97, 0.14) !important;
-  background: rgba(10, 11, 10, 0.94) !important;
+  background: rgba(43, 48, 42, 0.96) !important;
   box-shadow:
-    0 10px 36px rgba(0, 0, 0, 0.48),
-    0 0 26px rgba(176, 154, 97, 0.05),
-    inset 0 1px 0 rgba(240, 234, 223, 0.035) !important;
+    0 10px 36px rgba(0, 0, 0, 0.42),
+    0 0 26px rgba(176, 154, 97, 0.06),
+    inset 0 1px 0 rgba(240, 234, 223, 0.05) !important;
 }
 
 .cabinet-bottom-nav-active {
@@ -2289,5 +2310,255 @@ input[type="checkbox"]:hover:not(:checked) {
   .cabinet-meter-fill,
   .brand-lockup-image {
     transition: none;
+  }
+}
+
+/* ========== НаСвязи Subscription Card UX (KOHO-style, light champagne) ========== */
+.cabinet-subcard-stack {
+  display: grid;
+  gap: 16px;
+}
+
+/* HERO — subscription membership card */
+.cabinet-subcard-hero {
+  position: relative;
+  display: grid;
+  gap: 20px;
+  overflow: hidden;
+  padding: 24px;
+  border: 1px solid rgba(165, 94, 73, 0.35);
+  border-radius: 24px;
+  background: linear-gradient(135deg, #a55e49 0%, #894c3b 48%, #b09a61 100%);
+  color: #fef9f0;
+  box-shadow:
+    0 22px 50px rgba(165, 94, 73, 0.28),
+    0 0 34px rgba(176, 154, 97, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: perspective(900px) rotateX(2.5deg);
+  transform-origin: center;
+}
+
+.cabinet-subcard-hero-sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.14) 48%,
+    transparent 66%
+  );
+  pointer-events: none;
+}
+
+.cabinet-subcard-hero-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cabinet-subcard-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Outfit", "Manrope", system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fef9f0;
+}
+
+.cabinet-subcard-mark {
+  width: 26px;
+  height: 22px;
+  fill: none;
+  stroke: #f3e4c6;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.25));
+}
+
+.cabinet-subcard-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #f3f7ee;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+}
+
+.cabinet-subcard-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #eaf3e4;
+  box-shadow: 0 0 10px 2px rgba(234, 243, 228, 0.7);
+}
+
+.cabinet-subcard-hero-body {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+
+.cabinet-subcard-plan {
+  font-family: "Outfit", "Manrope", system-ui, sans-serif;
+  font-size: clamp(1.7rem, 6vw, 2.3rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: #fffaf2;
+}
+
+.cabinet-subcard-days {
+  font-size: 0.95rem;
+  color: rgba(254, 249, 240, 0.82);
+}
+
+.cabinet-subcard-open {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fffaf2;
+  font-size: 0.9rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  transition:
+    transform 180ms ease,
+    background 180ms ease;
+}
+
+.cabinet-subcard-open:hover {
+  background: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+/* Round action buttons */
+.cabinet-subcard-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cabinet-subcard-action {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 14px 8px;
+  border-radius: 18px;
+  border: 1px solid #3a4137;
+  background: #2b302a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  color: #f2ece0;
+  text-align: center;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.cabinet-subcard-action:hover {
+  transform: translateY(-2px);
+  border-color: rgba(176, 154, 97, 0.4);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.36);
+}
+
+.cabinet-subcard-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cabinet-subcard-action-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(176, 154, 97, 0.32);
+  background: rgba(176, 154, 97, 0.12);
+  color: #a55e49;
+  box-shadow: 0 0 18px rgba(176, 154, 97, 0.12);
+}
+
+.cabinet-subcard-action small {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #b0a795;
+}
+
+/* Stat rows */
+.cabinet-subcard-stats {
+  display: grid;
+  gap: 12px;
+}
+
+.cabinet-subcard-stat {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid #3a4137;
+  background: #2b302a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+}
+
+.cabinet-subcard-stat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #b0a795;
+}
+
+.cabinet-subcard-stat-head span {
+  flex: 1;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cabinet-subcard-stat-head strong {
+  font-family: "Outfit", "Manrope", system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f2ece0;
+  letter-spacing: -0.02em;
+}
+
+.cabinet-subcard-stat small {
+  color: #8a8175;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 420px) {
+  .cabinet-subcard-hero {
+    padding: 20px;
+    transform: perspective(900px) rotateX(1.5deg);
+  }
+  .cabinet-subcard-plan {
+    font-size: 1.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cabinet-subcard-hero,
+  .cabinet-subcard-action,
+  .cabinet-subcard-open {
+    transition: none;
+    transform: none;
   }
 }

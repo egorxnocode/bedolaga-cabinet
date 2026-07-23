@@ -288,11 +288,7 @@ export function AppShell({ children }: AppShellProps) {
       <main className="mx-auto max-w-6xl px-4 py-6 pb-28 lg:px-6 lg:pb-8">{children}</main>
 
       {/* Mobile Bottom Navigation */}
-      <MobileBottomNav
-        isKeyboardOpen={isKeyboardOpen}
-        referralEnabled={referralEnabled}
-        wheelEnabled={wheelEnabled}
-      />
+      <MobileBottomNav isKeyboardOpen={isKeyboardOpen} />
     </div>
   );
 }

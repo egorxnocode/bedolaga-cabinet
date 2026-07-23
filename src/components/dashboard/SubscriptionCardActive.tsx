@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router';
 
 import {
   ArrowRightIcon,
+  ChatIcon,
   DevicesIcon,
   PlusIcon,
   RefreshIcon,
@@ -44,6 +45,7 @@ export default function SubscriptionCardActive({
   const isAtDeviceLimit =
     subscription.device_limit > 0 && connectedDevices >= subscription.device_limit;
   const planName = subscription.tariff_name || t('subscription.currentPlan');
+  const deviceLimitLabel = subscription.device_limit === 0 ? '∞' : subscription.device_limit;
 
   const connectDevice = () => {
     if (isAtDeviceLimit || !subscription.subscription_url) {
@@ -54,40 +56,84 @@ export default function SubscriptionCardActive({
   };
 
   return (
-    <section className="cabinet-dashboard-stack" aria-label={t('dashboard.yourSubscription')}>
-      <article className="cabinet-subscription-hero">
-        <div className="cabinet-card-heading">
-          <span className="cabinet-eyebrow">
-            {subscription.is_trial ? t('subscription.trialStatus') : t('dashboard.tariff')}
+    <section className="cabinet-subcard-stack" aria-label={t('dashboard.yourSubscription')}>
+      {/* HERO — subscription card (KOHO-style membership card) */}
+      <article className="cabinet-subcard-hero">
+        <span className="cabinet-subcard-hero-sheen" aria-hidden="true" />
+        <div className="cabinet-subcard-hero-top">
+          <span className="cabinet-subcard-brand">
+            <svg viewBox="0 0 48 40" className="cabinet-subcard-mark" aria-hidden="true">
+              <path d="M4 36 18 8l14 28" />
+              <path d="M12 36 18 24l6 12" />
+            </svg>
+            НаСвязи
           </span>
-          <span className="cabinet-status-pill">
+          <span className="cabinet-subcard-status">
             <i aria-hidden="true" />
             {t('subscription.active')}
           </span>
         </div>
-
-        <div>
-          <h2>{planName}</h2>
-          <p>
+        <div className="cabinet-subcard-hero-body">
+          <span className="cabinet-subcard-plan">{planName}</span>
+          <span className="cabinet-subcard-days">
             {subscription.is_trial
               ? t('dashboard.trialOffer.freeDesc')
               : `${t('dashboard.remaining')}: ${subscription.days_left} ${t('subscription.daysShort')}`}
-          </p>
+          </span>
         </div>
-
-        <Link to={`/subscriptions/${subscription.id}`} className="cabinet-primary-action">
+        <Link to={`/subscriptions/${subscription.id}`} className="cabinet-subcard-open">
           <span>{t('dashboard.viewSubscription')}</span>
           <ArrowRightIcon className="h-4 w-4" />
         </Link>
       </article>
 
-      <div className="cabinet-metric-grid">
-        <article className="cabinet-metric-card cabinet-metric-card-gold">
-          <div className="cabinet-metric-label">
+      {/* Round action buttons */}
+      <div className="cabinet-subcard-actions">
+        {subscription.subscription_url && (
+          <button
+            type="button"
+            className="cabinet-subcard-action"
+            onClick={connectDevice}
+            disabled={isAtDeviceLimit}
+            data-onboarding="connect-devices"
+          >
+            <span className="cabinet-subcard-action-icon">
+              <PlusIcon className="h-5 w-5" />
+            </span>
+            <small>{t('dashboard.connectDevice')}</small>
+          </button>
+        )}
+        <button
+          type="button"
+          className="cabinet-subcard-action"
+          onClick={() => refreshTrafficMutation.mutate()}
+          disabled={refreshTrafficMutation.isPending || trafficRefreshCooldown > 0}
+        >
+          <span className="cabinet-subcard-action-icon">
+            <RefreshIcon
+              className={refreshTrafficMutation.isPending ? 'h-5 w-5 animate-spin' : 'h-5 w-5'}
+            />
+          </span>
+          <small>
+            {trafficRefreshCooldown > 0 ? `${trafficRefreshCooldown}s` : t('common.refresh')}
+          </small>
+        </button>
+        <Link to="/support" className="cabinet-subcard-action">
+          <span className="cabinet-subcard-action-icon">
+            <ChatIcon className="h-5 w-5" />
+          </span>
+          <small>{t('nav.support')}</small>
+        </Link>
+      </div>
+
+      {/* Stat rows */}
+      <div className="cabinet-subcard-stats">
+        <div className="cabinet-subcard-stat">
+          <div className="cabinet-subcard-stat-head">
             <TrafficIcon className="h-4 w-4" />
             <span>{t('dashboard.trafficUsageTitle')}</span>
+            <strong>{isUnlimited ? '∞' : formatTraffic(remainingGb)}</strong>
           </div>
-          <strong>{isUnlimited ? '∞' : formatTraffic(remainingGb)}</strong>
           <div className="cabinet-meter" aria-hidden="true">
             <span className="cabinet-meter-fill" style={{ width: `${remainingPercent}%` }} />
           </div>
@@ -96,20 +142,17 @@ export default function SubscriptionCardActive({
               ? t('dashboard.unlimited')
               : `${formatTraffic(usedGb)} ${t('dashboard.usedSuffix')}`}
           </small>
-        </article>
+        </div>
 
-        <article className="cabinet-metric-card cabinet-metric-card-sage">
-          <div className="cabinet-metric-label">
+        <div className="cabinet-subcard-stat">
+          <div className="cabinet-subcard-stat-head">
             <DevicesIcon className="h-4 w-4" />
             <span>{t('subscription.devices')}</span>
+            <strong>
+              {connectedDevices}
+              <span className="cabinet-metric-value-suffix"> / {deviceLimitLabel}</span>
+            </strong>
           </div>
-          <strong>
-            {connectedDevices}
-            <span className="cabinet-metric-value-suffix">
-              {' '}
-              / {subscription.device_limit === 0 ? '∞' : subscription.device_limit}
-            </span>
-          </strong>
           <div className="cabinet-device-dots" aria-hidden="true">
             {Array.from(
               { length: Math.min(Math.max(subscription.device_limit || 3, 3), 5) },
@@ -123,47 +166,8 @@ export default function SubscriptionCardActive({
               ? t('dashboard.deviceLimitReached')
               : t('dashboard.devicesConnected', { count: connectedDevices })}
           </small>
-        </article>
+        </div>
       </div>
-
-      {subscription.subscription_url && (
-        <button
-          type="button"
-          className="cabinet-quick-action"
-          onClick={connectDevice}
-          disabled={isAtDeviceLimit}
-          data-onboarding="connect-devices"
-        >
-          <span className="cabinet-quick-action-icon">
-            <PlusIcon className="h-5 w-5" />
-          </span>
-          <span className="cabinet-quick-action-copy">
-            <small>{t('dashboard.quickActions')}</small>
-            <strong>{t('dashboard.connectDevice')}</strong>
-            <span className="cabinet-quick-action-meta">
-              {subscription.device_limit === 0
-                ? t('dashboard.devicesConnectedUnlimited', { used: connectedDevices })
-                : t('dashboard.devicesOfMax', {
-                    used: connectedDevices,
-                    max: subscription.device_limit,
-                  })}
-            </span>
-          </span>
-          <ArrowRightIcon className="h-5 w-5" />
-        </button>
-      )}
-
-      <button
-        type="button"
-        className="cabinet-refresh-action"
-        onClick={() => refreshTrafficMutation.mutate()}
-        disabled={refreshTrafficMutation.isPending || trafficRefreshCooldown > 0}
-      >
-        <RefreshIcon
-          className={`h-3.5 w-3.5 ${refreshTrafficMutation.isPending ? 'animate-spin' : ''}`}
-        />
-        {trafficRefreshCooldown > 0 ? `${trafficRefreshCooldown}s` : t('common.refresh')}
-      </button>
     </section>
   );
 }
