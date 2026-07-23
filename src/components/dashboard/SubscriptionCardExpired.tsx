@@ -1,106 +1,28 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useLocation } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
+import { Link } from 'react-router';
 import type { Subscription } from '../../types';
-import { subscriptionApi } from '../../api/subscription';
 import { useTheme } from '../../hooks/useTheme';
-import { useCurrency } from '../../hooks/useCurrency';
-import { useHapticFeedback } from '../../platform/hooks/useHaptic';
 import { getGlassColors } from '../../utils/glassTheme';
-import { getInsufficientBalanceError } from '../../utils/subscriptionHelpers';
-import { ClockIcon, ExclamationIcon, PlusIcon, SubscriptionIcon } from '@/components/icons';
+import { ClockIcon, ExclamationIcon, PlusIcon } from '@/components/icons';
 
 interface SubscriptionCardExpiredProps {
   subscription: Subscription;
-  balanceKopeks?: number;
-  balanceRubles?: number;
   className?: string;
 }
 
 export default function SubscriptionCardExpired({
   subscription,
-  balanceKopeks = 0,
-  balanceRubles = 0,
   className,
 }: SubscriptionCardExpiredProps) {
   const { t } = useTranslation();
   const { isDark } = useTheme();
   const g = getGlassColors(isDark);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { formatAmount, currencySymbol } = useCurrency();
-  const haptic = useHapticFeedback();
-
-  const [isRenewing, setIsRenewing] = useState(false);
-  const [renewError, setRenewError] = useState<string | null>(null);
 
   const formattedDate = new Date(subscription.end_date).toLocaleDateString();
 
   // Detect limited (traffic exhausted) state
   const isLimited = subscription.is_limited;
-
-  // Detect daily subscription (disabled or expired)
-  const isDaily = subscription.is_daily;
-  const isDisabledDaily = subscription.status === 'disabled' && isDaily;
-
-  // For daily subs, check if balance covers daily price; otherwise 100 kopeks minimum
-  const dailyPrice = subscription.daily_price_kopeks ?? 0;
-  const hasBalance = isDaily ? balanceKopeks >= dailyPrice && dailyPrice > 0 : balanceKopeks >= 100;
-
-  const handleQuickRenew = async () => {
-    setIsRenewing(true);
-    setRenewError(null);
-    haptic.buttonPressHeavy();
-
-    try {
-      if (isDisabledDaily) {
-        // Resume daily subscription via toggle pause endpoint
-        await subscriptionApi.togglePause(subscription.id);
-      } else if (isDaily && subscription.tariff_id) {
-        // Expired daily tariff — purchase for 1 day. Pass subscription.id
-        // so the backend resolves the EXACT row instead of doing a
-        // (user_id, tariff_id) re-lookup that races with concurrent
-        // panel webhooks (would surface as "Тариф уже активен" + refund).
-        await subscriptionApi.purchaseTariff(subscription.tariff_id, 1, undefined, subscription.id);
-      } else {
-        await subscriptionApi.renewSubscription(30, subscription.id);
-      }
-      haptic.success();
-      queryClient.invalidateQueries({
-        predicate: (query) => Array.isArray(query.queryKey) && query.queryKey[0] === 'subscription',
-      });
-      queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
-      queryClient.invalidateQueries({ queryKey: ['balance'] });
-      queryClient.invalidateQueries({ queryKey: ['purchase-options'] });
-    } catch (err: unknown) {
-      haptic.error();
-      const insufficientData = getInsufficientBalanceError(err);
-      if (insufficientData) {
-        setRenewError(t('dashboard.expired.insufficientFunds'));
-      } else if (err instanceof AxiosError) {
-        const detail = err.response?.data?.detail;
-        if (typeof detail === 'string') {
-          setRenewError(detail);
-        } else {
-          setRenewError(t('dashboard.expired.renewError'));
-        }
-      } else {
-        setRenewError(t('dashboard.expired.renewError'));
-      }
-    } finally {
-      setIsRenewing(false);
-    }
-  };
-
-  const handleTopUp = () => {
-    haptic.buttonPress();
-    const params = new URLSearchParams();
-    params.set('returnTo', location.pathname);
-    navigate(`/balance/top-up?${params.toString()}`);
-  };
+  const isDisabledDaily = subscription.status === 'disabled' && subscription.is_daily;
 
   // Color scheme: amber for limited, red for expired/disabled
   const accent = isLimited
@@ -216,27 +138,7 @@ export default function SubscriptionCardExpired({
             {formattedDate}
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-dark-50/30">
-            {t('dashboard.expired.balance')}
-          </span>
-          <span
-            className={`text-sm font-semibold ${hasBalance ? 'text-success-400' : 'text-dark-50/30'}`}
-          >
-            {formatAmount(balanceRubles)} {currencySymbol}
-          </span>
-        </div>
       </div>
-
-      {/* Renew error */}
-      {renewError && (
-        <div
-          className="mb-4 rounded-xl border border-error-500/30 bg-error-500/10 p-3 text-center text-sm text-error-400"
-          role="alert"
-        >
-          {renewError}
-        </div>
-      )}
 
       {/* Action buttons */}
       <div className="flex gap-2.5">
@@ -253,73 +155,17 @@ export default function SubscriptionCardExpired({
             {t('subscription.buyTraffic')}
           </Link>
         ) : (
-          <>
-            {/* Quick Renew or Top Up button (hidden for expired trials) */}
-            {!subscription.is_trial && (
-              <>
-                {hasBalance ? (
-                  <button
-                    type="button"
-                    onClick={handleQuickRenew}
-                    disabled={isRenewing}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-[14px] py-3.5 text-[15px] font-semibold tracking-tight text-white transition-all duration-300 disabled:opacity-50"
-                    style={{
-                      background: accent.gradient,
-                      boxShadow: `0 4px 20px rgba(${accent.r},${accent.g},${accent.b},0.2)`,
-                    }}
-                  >
-                    {isRenewing ? (
-                      <span
-                        className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <SubscriptionIcon className="h-4 w-4" />
-                    )}
-                    {isRenewing
-                      ? t('common.loading')
-                      : isDisabledDaily
-                        ? t('dashboard.suspended.resume')
-                        : t('dashboard.expired.quickRenew')}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleTopUp}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-[14px] py-3.5 text-[15px] font-semibold tracking-tight text-white transition-all duration-300"
-                    style={{
-                      background: accent.gradient,
-                      boxShadow: `0 4px 20px rgba(${accent.r},${accent.g},${accent.b},0.2)`,
-                    }}
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    {t('dashboard.expired.topUp')}
-                  </button>
-                )}
-              </>
-            )}
-
-            {/* Tariffs (go to purchase page) — full-width for trials */}
-            <Link
-              to="/subscription/purchase"
-              className={`flex items-center justify-center rounded-[14px] px-5 py-3.5 text-[15px] font-semibold tracking-tight transition-colors duration-200 ${
-                subscription.is_trial ? 'flex-1 text-white' : 'text-dark-50/50'
-              }`}
-              style={
-                subscription.is_trial
-                  ? {
-                      background: accent.gradient,
-                      boxShadow: `0 4px 20px rgba(${accent.r},${accent.g},${accent.b},0.2)`,
-                    }
-                  : {
-                      background: g.innerBg,
-                      border: `1px solid ${g.innerBorder}`,
-                    }
-              }
-            >
-              {t('dashboard.expired.tariffs')}
-            </Link>
-          </>
+          <Link
+            to={`/subscription/purchase?subscriptionId=${subscription.id}`}
+            className="flex flex-1 items-center justify-center gap-2 rounded-[14px] py-3.5 text-[15px] font-semibold tracking-tight text-white transition-all duration-300"
+            style={{
+              background: accent.gradient,
+              boxShadow: `0 4px 20px rgba(${accent.r},${accent.g},${accent.b},0.2)`,
+            }}
+          >
+            <PlusIcon className="h-4 w-4" />
+            {t('dashboard.expired.tariffs')}
+          </Link>
         )}
       </div>
     </div>

@@ -285,7 +285,8 @@ export default function SubscriptionPurchase() {
                 key={selectedTariff.id}
                 tariff={selectedTariff}
                 subscriptionId={subscriptionId}
-                balanceKopeks={purchaseOptions?.balance_kopeks}
+                recurrentEmailRequired={Boolean(purchaseOptions?.lava_recurrent_email_required)}
+                recurrentEmail={purchaseOptions?.lava_recurrent_email ?? ''}
                 onBack={() => {
                   setShowTariffPurchase(false);
                   setSelectedTariff(null);

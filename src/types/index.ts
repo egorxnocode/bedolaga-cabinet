@@ -353,6 +353,7 @@ export interface Tariff {
   traffic_reset_mode?: string;
   // Multi-tariff: already purchased by user
   is_purchased?: boolean;
+  lava_recurrent_periods?: number[];
 }
 
 export interface TariffsPurchaseOptions {
@@ -370,6 +371,10 @@ export interface TariffsPurchaseOptions {
   has_subscription?: boolean;
   // Multi-tariff: all available tariffs already purchased
   all_tariffs_purchased?: boolean;
+  lava_recurrent_checkout_eligible?: boolean;
+  lava_recurrent_trial_subscription_id?: number | null;
+  lava_recurrent_email_required?: boolean;
+  lava_recurrent_email?: string | null;
 }
 
 export interface ClassicPurchaseOptions {
@@ -621,6 +626,7 @@ export interface PendingPayment {
   user_telegram_id?: number;
   user_username?: string | null;
   user_email?: string | null;
+  service_order_id?: number | null;
 }
 
 export interface ManualCheckResponse {

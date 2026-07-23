@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { adminPaymentsApi, type SearchStats } from '../api/adminPayments';
+import { adminPaymentsApi, type LavaRefund, type SearchStats } from '../api/adminPayments';
 import { DateField } from '../components/DateField';
 import { useCurrency } from '../hooks/useCurrency';
 import type { PendingPayment, PaginatedResponse } from '../types';
 import { usePlatform } from '../platform/hooks/usePlatform';
+import { useNativeDialog } from '../platform/hooks/useNativeDialog';
+import { useNotify } from '../platform/hooks/useNotify';
+import { usePrompt } from '../store/promptDialog';
 import { StatCard } from '@/components/stats';
 import {
   BackIcon,
@@ -48,6 +51,9 @@ export default function AdminPayments() {
   const queryClient = useQueryClient();
   const { formatAmount, currencySymbol } = useCurrency();
   const { capabilities } = usePlatform();
+  const dialog = useNativeDialog();
+  const notify = useNotify();
+  const promptDialog = usePrompt();
 
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,6 +118,12 @@ export default function AdminPayments() {
     refetchInterval: isDefaultFilters ? 30000 : false,
   });
 
+  const { data: lavaRefunds = [] } = useQuery<LavaRefund[]>({
+    queryKey: ['admin-lava-refunds'],
+    queryFn: adminPaymentsApi.getLavaRefunds,
+    refetchInterval: 30000,
+  });
+
   // Check payment mutation
   const checkPaymentMutation = useMutation({
     mutationFn: ({ method, paymentId }: { method: string; paymentId: number }) =>
@@ -124,6 +136,57 @@ export default function AdminPayments() {
       setCheckingPaymentId(null);
     },
   });
+
+  const createRefundMutation = useMutation({
+    mutationFn: ({ orderId, reason }: { orderId: number; reason: string }) =>
+      adminPaymentsApi.createLavaRefund(orderId, { reason, revoke_service: false }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-lava-refunds'] });
+      notify.success(
+        'Заявка сохранена. Верните деньги в кабинете Lava, затем подтвердите возврат здесь по ID операции.',
+      );
+    },
+    onError: () => notify.error('Не удалось создать заявку на возврат.'),
+  });
+
+  const confirmRefundMutation = useMutation({
+    mutationFn: ({
+      refundId,
+      providerReference,
+    }: {
+      refundId: number;
+      providerReference: string;
+    }) =>
+      adminPaymentsApi.confirmLavaRefund(refundId, {
+        money_returned: true,
+        provider_reference: providerReference,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-lava-refunds'] });
+      notify.success('Возврат отмечен выполненным, пользователь уведомлён.');
+    },
+    onError: () => notify.error('Не удалось подтвердить возврат.'),
+  });
+
+  const handleCreateRefund = async (orderId: number) => {
+    const reason = (
+      await promptDialog({ label: 'Причина полного возврата', inputType: 'text' })
+    )?.trim();
+    if (!reason) return;
+    createRefundMutation.mutate({ orderId, reason });
+  };
+
+  const handleConfirmRefund = async (refundId: number) => {
+    const confirmed = await dialog.confirm(
+      'Деньги уже реально возвращены клиенту в кабинете Lava на исходный способ оплаты?',
+    );
+    if (!confirmed) return;
+    const providerReference = (
+      await promptDialog({ label: 'ID или номер операции возврата в Lava', inputType: 'text' })
+    )?.trim();
+    if (!providerReference) return;
+    confirmRefundMutation.mutate({ refundId, providerReference });
+  };
 
   const handleCheckPayment = (payment: PendingPayment) => {
     setCheckingPaymentId(`${payment.method}_${payment.id}`);
@@ -193,6 +256,45 @@ export default function AdminPayments() {
           {t('common.refresh')}
         </button>
       </div>
+
+      {lavaRefunds.length > 0 && (
+        <div className="card space-y-3 border-warning-500/30">
+          <div>
+            <h2 className="font-semibold text-dark-100">Возвраты Lava</h2>
+            <p className="mt-1 text-sm text-dark-400">
+              У Lava нет публичного API возврата. Сначала верните деньги в кабинете Lava, затем
+              подтвердите операцию здесь. Внутренний баланс пользователя не меняется.
+            </p>
+          </div>
+          {lavaRefunds.map((refund) => (
+            <div
+              key={refund.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dark-700/40 bg-dark-800/40 p-3"
+            >
+              <div className="text-sm">
+                <div className="font-medium text-dark-100">
+                  Возврат #{refund.id} · заказ #{refund.service_order_id} ·{' '}
+                  {formatAmount(refund.amount_kopeks / 100)} {currencySymbol}
+                </div>
+                <div className="mt-1 text-dark-400">{refund.reason}</div>
+                <div className="mt-1 text-xs text-dark-500">
+                  {refund.status === 'completed' ? 'Выполнен' : 'Требуется ручной возврат в Lava'}
+                </div>
+              </div>
+              {refund.status === 'manual_required' && (
+                <button
+                  type="button"
+                  className="btn-primary text-sm"
+                  disabled={confirmRefundMutation.isPending}
+                  onClick={() => handleConfirmRefund(refund.id)}
+                >
+                  Подтвердить возврат
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Search bar */}
       <div>
@@ -403,6 +505,7 @@ export default function AdminPayments() {
               const paymentKey = `${payment.method}_${payment.id}`;
               const isChecking = checkingPaymentId === paymentKey;
               const isCancelled = payment.status.toLowerCase().includes('cancel');
+              const serviceOrderId = payment.service_order_id;
 
               return (
                 <div
@@ -536,6 +639,16 @@ export default function AdminPayments() {
                           ) : (
                             t('admin.payments.checkStatus')
                           )}
+                        </button>
+                      )}
+                      {payment.method === 'lava' && payment.is_paid && serviceOrderId && (
+                        <button
+                          type="button"
+                          onClick={() => handleCreateRefund(serviceOrderId)}
+                          disabled={createRefundMutation.isPending}
+                          className="btn-secondary px-3 py-1.5 text-xs text-warning-300"
+                        >
+                          Оформить возврат
                         </button>
                       )}
                     </div>

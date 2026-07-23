@@ -88,6 +88,30 @@ export interface AdminTicketListResponse {
   pages: number;
 }
 
+export type AiSupportDraftStatus = 'pending' | 'accepted' | 'rejected' | 'superseded';
+
+export interface AiSupportDraft {
+  id: number;
+  run_id: number;
+  ticket_id: number;
+  trigger_message_id: number;
+  status: AiSupportDraftStatus;
+  answer_text: string;
+  citations: string[];
+  reviewed_text: string | null;
+  reviewed_by_user_id: number | null;
+  reviewed_at: string | null;
+  review_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AiSupportDraftReview {
+  action: 'accepted' | 'rejected';
+  reviewed_text?: string;
+  reason?: string;
+}
+
 export const adminApi = {
   // Check if current user is admin
   checkIsAdmin: async (): Promise<{ is_admin: boolean }> => {
@@ -118,6 +142,23 @@ export const adminApi = {
   // Get single ticket with messages
   getTicket: async (ticketId: number): Promise<AdminTicketDetail> => {
     const response = await apiClient.get(`/cabinet/admin/tickets/${ticketId}`);
+    return response.data;
+  },
+
+  getAiSupportDrafts: async (ticketId: number): Promise<AiSupportDraft[]> => {
+    const response = await apiClient.get(`/cabinet/admin/tickets/${ticketId}/ai-drafts`);
+    return response.data;
+  },
+
+  reviewAiSupportDraft: async (
+    ticketId: number,
+    draftId: number,
+    review: AiSupportDraftReview,
+  ): Promise<AiSupportDraft> => {
+    const response = await apiClient.post(
+      `/cabinet/admin/tickets/${ticketId}/ai-drafts/${draftId}/review`,
+      review,
+    );
     return response.data;
   },
 

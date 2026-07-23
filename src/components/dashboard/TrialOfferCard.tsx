@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
-import { UseMutationResult } from '@tanstack/react-query';
+import type { UseMutationResult } from '@tanstack/react-query';
 import type { TrialInfo } from '../../types';
 import { useCurrency } from '../../hooks/useCurrency';
 import { useTheme } from '../../hooks/useTheme';
@@ -9,25 +8,20 @@ import { BoltIcon, SparklesIcon } from '@/components/icons';
 
 interface TrialOfferCardProps {
   trialInfo: TrialInfo;
-  balanceKopeks: number;
-  balanceRubles: number;
   activateTrialMutation: UseMutationResult<unknown, unknown, void, unknown>;
   trialError: string | null;
 }
 
 export default function TrialOfferCard({
   trialInfo,
-  balanceKopeks,
-  balanceRubles,
   activateTrialMutation,
   trialError,
 }: TrialOfferCardProps) {
   const { t } = useTranslation();
-  const { formatAmount, currencySymbol } = useCurrency();
+  const { currencySymbol } = useCurrency();
   const { isDark } = useTheme();
   const g = getGlassColors(isDark);
   const isFree = !trialInfo.requires_payment;
-  const canAfford = balanceKopeks >= trialInfo.price_kopeks;
 
   return (
     <div
@@ -177,28 +171,6 @@ export default function TrialOfferCard({
         ))}
       </div>
 
-      {/* Balance info for paid trial */}
-      {!isFree && trialInfo.price_rubles > 0 && (
-        <div
-          className="mb-4 space-y-2 rounded-xl p-4 text-left"
-          style={{ background: g.innerBg, border: `1px solid ${g.innerBorder}` }}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-dark-50/40">{t('balance.currentBalance')}</span>
-            <span
-              className={`font-display text-sm font-semibold ${canAfford ? 'text-success-400' : 'text-warning-400'}`}
-            >
-              {formatAmount(balanceRubles)} {currencySymbol}
-            </span>
-          </div>
-          {!canAfford && (
-            <div className="text-xs text-warning-400">
-              {t('subscription.trial.insufficientBalance')}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Error */}
       {trialError && (
         <div className="mb-4 rounded-xl border border-error-500/30 bg-error-500/10 p-3 text-center text-sm text-error-400">
@@ -208,34 +180,12 @@ export default function TrialOfferCard({
 
       {/* CTA Button */}
       {!isFree && trialInfo.price_kopeks > 0 ? (
-        canAfford ? (
-          <button
-            onClick={() => !activateTrialMutation.isPending && activateTrialMutation.mutate()}
-            disabled={activateTrialMutation.isPending}
-            className="w-full rounded-[14px] py-4 text-base font-bold tracking-tight transition-all duration-300 disabled:opacity-50"
-            style={{
-              background: 'linear-gradient(135deg, #FFB800, #FF8C42)',
-              color: '#1a1200',
-              boxShadow: '0 4px 20px rgba(255,184,0,0.2)',
-            }}
-          >
-            {activateTrialMutation.isPending
-              ? t('common.loading')
-              : t('subscription.trial.payAndActivate')}
-          </button>
-        ) : (
-          <Link
-            to="/balance"
-            className="block w-full rounded-[14px] py-4 text-center text-base font-bold tracking-tight transition-all duration-300"
-            style={{
-              background: 'linear-gradient(135deg, #FFB800, #FF8C42)',
-              color: '#1a1200',
-              boxShadow: '0 4px 20px rgba(255,184,0,0.2)',
-            }}
-          >
-            {t('subscription.trial.topUpToActivate')}
-          </Link>
-        )
+        <button
+          disabled
+          className="w-full rounded-[14px] bg-dark-700 py-4 text-base font-bold text-dark-400 opacity-70"
+        >
+          Платный триал временно недоступен
+        </button>
       ) : (
         <button
           onClick={() => !activateTrialMutation.isPending && activateTrialMutation.mutate()}

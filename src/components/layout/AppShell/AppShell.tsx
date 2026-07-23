@@ -25,7 +25,6 @@ import {
   SubscriptionIcon,
   GiftIcon,
   HomeIcon,
-  CreditCardIcon,
   ChatIcon,
   UserIcon,
   UsersIcon,
@@ -117,7 +116,6 @@ export function AppShell({ children }: AppShellProps) {
   const desktopNav = [
     { path: '/', label: t('nav.dashboard'), icon: HomeIcon },
     { path: '/subscriptions', label: t('nav.subscription'), icon: SubscriptionIcon },
-    { path: '/balance', label: t('nav.balance'), icon: CreditCardIcon },
     ...(referralEnabled ? [{ path: '/referral', label: t('nav.referral'), icon: UsersIcon }] : []),
     ...(giftEnabled ? [{ path: '/gift', label: t('nav.gift'), icon: GiftIcon }] : []),
     { path: '/support', label: t('nav.support'), icon: ChatIcon },

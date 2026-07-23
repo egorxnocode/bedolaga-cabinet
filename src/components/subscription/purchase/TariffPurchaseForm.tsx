@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { subscriptionApi } from '../../../api/subscription';
-import { getErrorMessage, getInsufficientBalanceError } from '../../../utils/subscriptionHelpers';
+import { getErrorMessage } from '../../../utils/subscriptionHelpers';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { usePromoDiscount } from '../../../hooks/usePromoDiscount';
-import InsufficientBalancePrompt from '../../InsufficientBalancePrompt';
 import type { Tariff, TariffPeriod } from '../../../types';
+import { usePlatform } from '../../../platform';
+import { openPaymentUrl } from '../../../utils/openPaymentUrl';
 
 // ──────────────────────────────────────────────────────────────────
 // TariffPurchaseForm
@@ -22,7 +23,6 @@ import type { Tariff, TariffPeriod } from '../../../types';
 //     by re-mount when the parent passes a new `tariff` via key=)
 //
 // The parent (SubscriptionPurchase) supplies the chosen tariff,
-// the current balance (for inline insufficient-balance prompts),
 // the subscription id (for the renew-this-subscription flow), and
 // onBack to clear its own selection state.
 // ──────────────────────────────────────────────────────────────────
@@ -30,15 +30,17 @@ import type { Tariff, TariffPeriod } from '../../../types';
 export interface TariffPurchaseFormProps {
   tariff: Tariff;
   subscriptionId: number | undefined;
-  balanceKopeks: number | undefined;
   onBack: () => void;
+  recurrentEmailRequired: boolean;
+  recurrentEmail: string;
 }
 
 export function TariffPurchaseForm({
   tariff,
   subscriptionId,
-  balanceKopeks,
   onBack,
+  recurrentEmailRequired,
+  recurrentEmail: savedRecurrentEmail,
 }: TariffPurchaseFormProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -46,6 +48,7 @@ export function TariffPurchaseForm({
   const { formatAmount, currencySymbol } = useCurrency();
   const { applyPromoDiscount } = usePromoDiscount();
   const ref = useRef<HTMLDivElement>(null);
+  const { platform, openLink } = usePlatform();
 
   const formatPrice = (kopeks: number) =>
     kopeks === 0
@@ -61,9 +64,29 @@ export function TariffPurchaseForm({
   const [customTrafficGb, setCustomTrafficGb] = useState<number>(50);
   const [useCustomDays, setUseCustomDays] = useState(false);
   const [useCustomTraffic, setUseCustomTraffic] = useState(false);
+  const [useLavaRecurrent, setUseLavaRecurrent] = useState(true);
+  const [recurrentEmail, setRecurrentEmail] = useState(savedRecurrentEmail);
+  const selectedPeriodPromo = selectedTariffPeriod
+    ? applyPromoDiscount(
+        selectedTariffPeriod.price_kopeks,
+        selectedTariffPeriod.original_price_kopeks,
+      )
+    : null;
+  const canUseLavaRecurrent = Boolean(
+    !useCustomDays &&
+      !useCustomTraffic &&
+      selectedTariffPeriod &&
+      tariff.lava_recurrent_periods?.includes(selectedTariffPeriod.days) &&
+      !selectedPeriodPromo?.percent &&
+      (selectedTariffPeriod.extra_devices_count ?? 0) === 0,
+  );
+
+  useEffect(() => {
+    if (!canUseLavaRecurrent) setUseLavaRecurrent(false);
+  }, [canUseLavaRecurrent]);
 
   const purchaseMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async (): Promise<{ paymentUrl?: string }> => {
       const isDailyTariff =
         tariff.is_daily || (tariff.daily_price_kopeks && tariff.daily_price_kopeks > 0);
       const days = isDailyTariff
@@ -78,14 +101,23 @@ export function TariffPurchaseForm({
       // uses it to resolve the exact target row by ID, avoiding the
       // race with concurrent panel webhooks that would otherwise hit
       // the partial UNIQUE on uq_subscriptions_user_tariff_active.
-      return subscriptionApi.purchaseTariff(
-        tariff.id,
-        days,
-        trafficGb,
-        subscriptionId ?? undefined,
-      );
+      const checkout = await subscriptionApi.checkoutLavaService({
+        kind: isDailyTariff ? 'daily' : 'tariff',
+        tariff_id: tariff.id,
+        period_days: days,
+        subscription_id: subscriptionId,
+        traffic_gb: trafficGb,
+        recurrent: !isDailyTariff && useLavaRecurrent && canUseLavaRecurrent,
+        email: recurrentEmail.trim() || undefined,
+        accepted_terms: !isDailyTariff && useLavaRecurrent && canUseLavaRecurrent,
+      });
+      return { paymentUrl: checkout.payment_url };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result.paymentUrl) {
+        openPaymentUrl(result.paymentUrl, platform, openLink);
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['purchase-options'] });
       queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
@@ -147,32 +179,27 @@ export function TariffPurchaseForm({
           <div className="space-y-2 text-sm text-dark-400">
             <div className="flex items-start gap-2">
               <span className="text-accent-400">•</span>
-              <span>{t('subscription.dailyPurchase.chargedDaily')}</span>
+              <span>Оплачивается разовым счётом Lava</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-accent-400">•</span>
-              <span>{t('subscription.dailyPurchase.canPause')}</span>
+              <span>Способы оплаты: СБП, банковская карта</span>
             </div>
             <div className="flex items-start gap-2">
               <span className="text-accent-400">•</span>
-              <span>{t('subscription.dailyPurchase.pausedOnLowBalance')}</span>
+              <span>Без автосписаний и внутреннего баланса</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-accent-400">•</span>
+              <span>Каждая активация оплачивается отдельно</span>
             </div>
           </div>
 
           {(() => {
             const dailyPrice = tariff.daily_price_kopeks || 0;
-            const hasEnoughBalance = balanceKopeks !== undefined && dailyPrice <= balanceKopeks;
 
             return (
               <div className="mt-6">
-                {balanceKopeks !== undefined && !hasEnoughBalance && (
-                  <InsufficientBalancePrompt
-                    missingAmountKopeks={dailyPrice - balanceKopeks}
-                    compact
-                    className="mb-4"
-                  />
-                )}
-
                 <button
                   onClick={() => purchaseMutation.mutate()}
                   disabled={purchaseMutation.isPending}
@@ -190,24 +217,11 @@ export function TariffPurchaseForm({
                   )}
                 </button>
 
-                {purchaseMutation.isError &&
-                  !getInsufficientBalanceError(purchaseMutation.error) && (
-                    <div className="mt-3 text-center text-sm text-error-400">
-                      {getErrorMessage(purchaseMutation.error)}
-                    </div>
-                  )}
-                {purchaseMutation.isError &&
-                  getInsufficientBalanceError(purchaseMutation.error) && (
-                    <div className="mt-3">
-                      <InsufficientBalancePrompt
-                        missingAmountKopeks={
-                          getInsufficientBalanceError(purchaseMutation.error)?.missingAmount ||
-                          dailyPrice - (balanceKopeks || 0)
-                        }
-                        compact
-                      />
-                    </div>
-                  )}
+                {purchaseMutation.isError && (
+                  <div className="mt-3 text-center text-sm text-error-400">
+                    {getErrorMessage(purchaseMutation.error)}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -502,6 +516,7 @@ export function TariffPurchaseForm({
                 const originalTotal = promoPeriod.original
                   ? promoPeriod.original + trafficPrice
                   : null;
+                const recurrentAvailable = canUseLavaRecurrent;
 
                 return (
                   <>
@@ -599,9 +614,65 @@ export function TariffPurchaseForm({
                       </div>
                     </div>
 
+                    {recurrentAvailable && (
+                      <div className="mb-4 space-y-3 rounded-xl border border-accent-500/30 bg-accent-500/10 p-3">
+                        <label className="flex items-start gap-2 text-sm text-dark-200">
+                          <input
+                            type="checkbox"
+                            checked={useLavaRecurrent}
+                            onChange={(event) => setUseLavaRecurrent(event.target.checked)}
+                            className="mt-1"
+                          />
+                          <span>
+                            Подключить автоматическую оплату с банковской карты. Первое списание —
+                            сейчас, следующие — раз в выбранный период.{' '}
+                            <Link
+                              to="/recurrent-payments"
+                              target="_blank"
+                              className="text-accent-400 underline"
+                            >
+                              Условия
+                            </Link>
+                          </span>
+                        </label>
+                        <div className="text-sm text-dark-300">
+                          {useLavaRecurrent && recurrentAvailable
+                            ? 'Способ оплаты: банковская карта'
+                            : 'Способы оплаты: СБП, банковская карта'}
+                        </div>
+                        {useLavaRecurrent && recurrentAvailable && (
+                          <div className="space-y-1">
+                            <input
+                              type="email"
+                              value={recurrentEmail}
+                              onChange={(event) => setRecurrentEmail(event.target.value)}
+                              placeholder="E-mail для чека"
+                              autoComplete="email"
+                              readOnly={!recurrentEmailRequired}
+                              className="w-full rounded-lg border border-dark-600 bg-dark-700 px-3 py-2 text-dark-100 read-only:cursor-default read-only:opacity-80"
+                            />
+                            {!recurrentEmailRequired && (
+                              <p className="text-xs text-dark-400">E-mail сохранён в аккаунте</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!recurrentAvailable && (
+                      <div className="mb-4 text-sm text-dark-300">
+                        Способы оплаты: СБП, банковская карта
+                      </div>
+                    )}
+
                     <button
                       onClick={() => purchaseMutation.mutate()}
-                      disabled={purchaseMutation.isPending}
+                      disabled={
+                        purchaseMutation.isPending ||
+                        (useLavaRecurrent &&
+                          recurrentAvailable &&
+                          recurrentEmailRequired &&
+                          !recurrentEmail.trim())
+                      }
                       className="btn-primary w-full py-3"
                     >
                       {purchaseMutation.isPending ? (
@@ -609,27 +680,19 @@ export function TariffPurchaseForm({
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                           {t('common.loading')}
                         </span>
+                      ) : useLavaRecurrent && recurrentAvailable ? (
+                        'Оплатить и подключить'
                       ) : (
-                        t('subscription.purchase')
+                        'Перейти к оплате'
                       )}
                     </button>
                   </>
                 );
               })()}
 
-              {purchaseMutation.isError && !getInsufficientBalanceError(purchaseMutation.error) && (
+              {purchaseMutation.isError && (
                 <div className="mt-3 text-center text-sm text-error-400">
                   {getErrorMessage(purchaseMutation.error)}
-                </div>
-              )}
-              {purchaseMutation.isError && getInsufficientBalanceError(purchaseMutation.error) && (
-                <div className="mt-3">
-                  <InsufficientBalancePrompt
-                    missingAmountKopeks={
-                      getInsufficientBalanceError(purchaseMutation.error)?.missingAmount || 0
-                    }
-                    compact
-                  />
                 </div>
               )}
             </div>

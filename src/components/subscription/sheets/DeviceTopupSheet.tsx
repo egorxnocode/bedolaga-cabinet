@@ -1,16 +1,15 @@
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { subscriptionApi } from '../../../api/subscription';
 import { getErrorMessage } from '../../../utils/subscriptionHelpers';
-import InsufficientBalancePrompt from '../../InsufficientBalancePrompt';
 import { ChevronRightIcon } from '../../icons';
-import type { PurchaseOptions, Subscription } from '../../../types';
+import type { Subscription } from '../../../types';
+import { usePlatform } from '../../../platform';
+import { openPaymentUrl } from '../../../utils/openPaymentUrl';
 
 // ──────────────────────────────────────────────────────────────────
 // Buy-devices sheet. Self-owns its devicePrice query + purchase mutation;
-// parent only passes the subscription / id / open state and the shared
-// purchaseOptions (which it already holds for sibling sheets and balance
-// gating).
+// parent only passes the subscription / id / open state.
 //
 // Extracted from Subscription.tsx to drop ~190 lines from the god page.
 // ──────────────────────────────────────────────────────────────────
@@ -23,7 +22,6 @@ export interface DeviceTopupSheetProps {
   subscriptionId: number | undefined;
   devicesToAdd: number;
   onDevicesToAddChange: (n: number) => void;
-  purchaseOptions: PurchaseOptions | undefined;
   isDark: boolean;
 }
 
@@ -35,11 +33,10 @@ export function DeviceTopupSheet({
   subscriptionId,
   devicesToAdd,
   onDevicesToAddChange,
-  purchaseOptions,
   isDark,
 }: DeviceTopupSheetProps) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
+  const { platform, openLink } = usePlatform();
 
   const formatPrice = (kopeks: number) => {
     const rubles = kopeks / 100;
@@ -53,13 +50,15 @@ export function DeviceTopupSheet({
   });
 
   const devicePurchaseMutation = useMutation({
-    mutationFn: () => subscriptionApi.purchaseDevices(devicesToAdd, subscriptionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscription', subscriptionId] });
-      queryClient.invalidateQueries({ queryKey: ['subscriptions-list'] });
-      queryClient.invalidateQueries({ queryKey: ['devices', subscriptionId] });
-      queryClient.invalidateQueries({ queryKey: ['device-price'] });
-      queryClient.invalidateQueries({ queryKey: ['balance'] });
+    mutationFn: () =>
+      subscriptionApi.checkoutLavaService({
+        kind: 'devices',
+        subscription_id: subscriptionId,
+        devices: devicesToAdd,
+        recurrent: false,
+      }),
+    onSuccess: (checkout) => {
+      openPaymentUrl(checkout.payment_url, platform, openLink);
       onClose();
       onDevicesToAddChange(1);
     },
@@ -197,33 +196,9 @@ export function DeviceTopupSheet({
             </div>
           )}
 
-          {/* Insufficient balance */}
-          {devicePriceData?.available &&
-            purchaseOptions &&
-            devicePriceData.total_price_kopeks &&
-            devicePriceData.total_price_kopeks > purchaseOptions.balance_kopeks && (
-              <InsufficientBalancePrompt
-                missingAmountKopeks={
-                  devicePriceData.total_price_kopeks - purchaseOptions.balance_kopeks
-                }
-                compact
-                onBeforeTopUp={async () => {
-                  await subscriptionApi.saveDevicesCart(devicesToAdd, subscriptionId);
-                }}
-              />
-            )}
-
           <button
             onClick={() => devicePurchaseMutation.mutate()}
-            disabled={
-              devicePurchaseMutation.isPending ||
-              !devicePriceData?.available ||
-              !!(
-                devicePriceData?.total_price_kopeks &&
-                purchaseOptions &&
-                devicePriceData.total_price_kopeks > purchaseOptions.balance_kopeks
-              )
-            }
+            disabled={devicePurchaseMutation.isPending || !devicePriceData?.available}
             className="btn-primary w-full py-3"
           >
             {devicePurchaseMutation.isPending ? (
